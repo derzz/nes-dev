@@ -3,13 +3,7 @@ use crate::mos::Mos;
 pub mod instruction{
     use super::Mos;
 
-    pub fn execute(mos: &mut Mos, op: u8){
-        let highnibble = op >> 4;
-        let lownibble = op & 0x0F;
-        println!("in execute!");
-        println!("lownibble {}", lownibble);
-
-        if lownibble == 0x8{
+    pub fn sb_one(mos: &mut Mos, highnibble:u8){
             println!("In single Byte!");
             // Single Byte instructions, don't need to read Bytes past the value
             // Eg. PHP, CLC, INX
@@ -93,8 +87,9 @@ pub mod instruction{
 
                 _ => unimplemented!("Unknown high nibble {} for SB1)", highnibble),
             }
-        } 
-        else if lownibble == 0xA && highnibble >= 0x8{
+    }
+
+    pub fn sb_two(mos: &mut Mos, highnibble:u8){
             // Group 2 single byte instructions
             match highnibble{
                 8 =>{
@@ -137,7 +132,82 @@ pub mod instruction{
                     unimplemented!("Unknown highnibble {} with low nibble 0xA(SB2)", highnibble)
                 }
             }
+    }
+
+fn group_one_aaa(aaa: u8) -> impl Fn(u8, u8, u8) -> u8 {
+    match aaa {
+        0 => {
+            // ORA
+            |memory: u8, a: u8, _flags: u8| -> u8 { a | memory }
         }
+        1 => {
+            // AND
+            |memory: u8, a: u8, _flags: u8| -> u8 { a & memory }
+        }
+        2 => {
+            // EOR
+            |memory: u8, a: u8, _flags: u8| -> u8 { a ^ memory }
+        }
+        3 => {
+            // ADC
+            |memory: u8, a: u8, _flags: u8| -> u8 { a.wrapping_add(memory) }
+        }
+        4 => {
+            // STA
+            |memory: u8, _a: u8, _flags: u8| -> u8 { memory }
+        }
+        5 => {
+            // LDA
+            |memory: u8, _a: u8, _flags: u8| -> u8 { memory }
+        }
+        6 => {
+            // CMP
+            |memory: u8, a: u8, _flags: u8| -> u8 { a.wrapping_sub(memory) }
+        }
+        7 => {
+            // SBC
+            |memory: u8, a: u8, flags: u8| -> u8 { a.wrapping_sub(memory).wrapping_sub(1 - (flags & 0x01)) }
+        }
+        _ => {
+            unimplemented!("Unknown group one aaa {}", aaa)
+        }
+    }
+}
+
+    fn group_one_bbb(){
+
+    }
+
+    pub fn group_one(mos: &mut Mos, aaa: u8, bbb: u8, cc: u8){
+        // Group 1
+        // TODO Require lambda operator for a given function and potential variables to pass through
+        let cmp = aaa == 7;
+        let final_func = group_one_aaa(aaa); // Define as final function
+        // Addressing
+
+        // if !cmp mos.a = final_func(addressing)        
+
+    }
+
+    pub fn execute(mos: &mut Mos, op: u8){
+        let highnibble = op >> 4;
+        let lownibble = op & 0x0F;
+        let aaa = op >> 5;
+        let bbb = (op >> 2) & 0x7;
+        let cc = op & 0x3; // Used for identification of group 1, 2, and 3
+        println!("in execute!");
+        println!("lownibble {}", lownibble);
+
+        if lownibble == 0x8{
+            sb_one(mos, highnibble);
+        } 
+        else if lownibble == 0xA && highnibble >= 0x8{
+            sb_two(mos, highnibble);
+        }
+        else if cc == 0x01{
+            group_one(mos, aaa, bbb, cc);
+        }
+
         else{
             unimplemented!("Unknown opcode {}", op)
         }
