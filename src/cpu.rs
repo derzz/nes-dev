@@ -7,7 +7,7 @@ pub struct CPU {
     pub a: Byte,
     pub x: Byte,
     pub y: Byte,
-    pub stack_pointer: Byte,
+    pub sp: Byte,
     pub flags: Byte,
     // address bus
     address: u16,
@@ -16,6 +16,7 @@ pub struct CPU {
     pub clock_time: Duration, // TODO change
                               // 256 x 224 pixels(NTSC)
 }
+
 
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
@@ -31,6 +32,20 @@ pub enum AddressingMode{
    Indirect_Y,
    NoneAddressing,
 }
+#[derive(Debug, Clone, Copy)]
+pub enum CpuFlags {
+    Carry = 0b00000001,
+    Zero = 0b00000010,
+    InterruptDisable = 0b00000100,
+    DecimalMode = 0b00001000,
+    Break = 0b00010000,
+    Break2 = 0b00100000,
+    Overflow = 0b01000000,
+    Negative = 0b10000000,
+}
+
+const STACK_RESET: u8 = 0xFD;
+const STACK: u16 = 0x0100;
 
 impl CPU {
     pub fn new() -> Self {
@@ -39,9 +54,8 @@ impl CPU {
             a: 0,
             x: 0,
             y: 0,
-            stack_pointer: 0xFD,
-            // sets to (00110100)
-            flags: 0x34,
+            sp: STACK_RESET,
+            flags: 0b00100100,
             address: 0,
             memory: [0; 0xFFFF],
             clock_time: Duration::from_millis(1), // Example value
@@ -68,8 +82,8 @@ impl CPU {
         self.a = 0;
         self.x = 0;
         self.y = 0;
-        self.flags = 0;
-
+        self.flags = 0b00100100;
+        self.sp = STACK_RESET;
         self.pc = self.mem_read_u16(0xFFFC);
    }
 
@@ -191,6 +205,23 @@ impl CPU {
 
    }
 
+   fn stack_push(&mut self, data: u8){
+    self.mem_write((STACK as u16) + self.sp as u16, data);
+    self.sp = self.sp.wrapping_sub(1);
+   }
+
+   fn stack_pull(&mut self) -> u8{
+    let ret = self.mem_read((STACK as u16) + self.sp as u16);
+    self.sp = self.sp.wrapping_add(1);
+    ret
+   }
+
+    fn php(&mut self){
+        let mut flags = self.flags.clone();
+        flags |= 0b00110000;
+        self.stack_push(flags);
+    }
+    
     // Used for grouping addressing modes
     fn sb_one(&mut self, highnibble: u8) {
         println!("In single Byte!");
@@ -202,7 +233,8 @@ impl CPU {
             0 => {
                 // PHP(push processor status) stores a Byte to the stack containing the flags NV11DDIZC and decrements stack pointer
                 // Note B Flag is marked as 1 for PHP
-                todo!("PHP")
+                self.php();
+                
             }
             1 => {
                 // CLC(Clear carry flag) clears the carry flag
@@ -287,7 +319,7 @@ impl CPU {
             }
             9 => {
                 // TXS transfers x to stack pointer
-                self.stack_pointer = self.x;
+                self.sp = self.x;
                 // No need to change flags
             }
             10 => {
@@ -297,7 +329,7 @@ impl CPU {
             }
             11 => {
                 // TSX
-                self.x = self.stack_pointer;
+                self.x = self.sp;
             }
             12 => {
                 // DEX

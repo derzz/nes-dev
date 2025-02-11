@@ -22,6 +22,7 @@ mod cpu_test{
         assert!(cpu.flags & 0b0000_0010 == 0b10);
     }
 
+    // LDA accumulator
  #[test]
    fn test_lda_from_memory() {
        let mut cpu = CPU::new();
@@ -30,5 +31,13 @@ mod cpu_test{
        cpu.load_and_run(vec![0xa5, 0x10, 0x00]);
 
        assert_eq!(cpu.a, 0x55);
+   }
+
+   // PHP Test for flags
+   #[test]
+   fn test_php(){
+    let mut cpu = CPU::new();
+    cpu.load_and_run(vec![0x08, 0x00]);
+    assert!(cpu.memory[(0x0100 + cpu.sp.wrapping_add(1) as u16) as usize] == 0b00110100, "pushed value is {:#b}", cpu.memory[(cpu.sp + 1) as usize])
    }
 }
