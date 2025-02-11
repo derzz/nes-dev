@@ -11,6 +11,7 @@ pub struct Mos{
     pub flags: Byte,
     // address bus
     address: u16,
+    // Array of 8 bit integers(FF) with length of 0x10000(0x0000 to 0xFFFF)
     pub memory : [u8; 0x10000],
     pub clock_time:  Duration, // TODO change
     // 256 x 224 pixels(NTSC)
@@ -45,6 +46,12 @@ impl Mos{
         *address as Byte
    }
 
+   pub fn read_pc(&mut self) -> Byte{
+        let ret = self.read_byte(&self.memory[self.pc as usize]);
+        self.pc += 1;
+        ret
+   }
+
     // This function writes directly to memory given an address
     // Used to bypass immutable passes that write_Byte occurs when trying to reference self.memory
     fn write_byte_memory(&mut self, address: usize, value: Byte){
@@ -55,7 +62,7 @@ impl Mos{
     fn read_address(&self, offset: usize) -> u16 {
         let mut val = self.read_byte(&self.memory[offset + 1]) as u16;
         val <<= 8;
-        val |= self.read_byte(&self.memory[offset + 1]) as u16;
+        val |= self.read_byte(&self.memory[offset]) as u16;
         val
     }
 

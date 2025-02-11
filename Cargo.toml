@@ -5,7 +5,3 @@ edition = "2021"
 
 [dependencies]
 
-[workspace] 
-members = [
-    "mos6502",
-]
