@@ -241,11 +241,11 @@ impl CPU {
 
     fn plp(&mut self) {
         self.flags = CpuFlags::from_bits_truncate(self.stack_pop());
-        // BUG the B flag and extra bit are ignored, but unknown if need to initalize to specific values
     }
 
     fn pha(&mut self){
         self.stack_push(self.a);
+        println!("Pushed {}", self.a);
     }
 
     fn pla(&mut self){

@@ -1,4 +1,9 @@
 use crate::cpu::CPU;
+use crate::cpu::CpuFlags;
+
+const FULLFLAGS: CpuFlags = CpuFlags::from_bits_truncate(0b11111111);
+const EMPTYFLAGS: CpuFlags = CpuFlags::from_bits_truncate(0b00000000);
+
 
 #[cfg(test)]
 mod cpu_test {
@@ -33,15 +38,72 @@ mod cpu_test {
         assert_eq!(cpu.a, 0x55);
     }
 
-    // PHP Test for flags
+
+    fn stack_push_test(cpu: &mut CPU, instructions: Vec<u8>, check: u8){
+        cpu.load_and_run(instructions);
+        assert!(
+            cpu.memory[(0x0100 + cpu.sp.wrapping_add(1) as u16) as usize] == check,
+            "pushed value is {:#b}",
+            cpu.memory[(0x0100 + cpu.sp.wrapping_add(1) as u16) as usize]
+        )
+    }
+
+
+    fn flag_removal_test(cpu: &mut CPU, instructions: Vec<u8>, check: CpuFlags){
+        cpu.flags = FULLFLAGS;
+        // Instruction should only be checking removal of one flag
+        cpu.load_and_run(instructions);
+        assert!(!cpu.flags.contains(check), "Cpu Flags is {:#b}", cpu.flags.bits());
+    }  
+
+    fn flag_insert_test(cpu: &mut CPU, instructions: Vec<u8>, check: CpuFlags){
+        cpu.flags = EMPTYFLAGS;
+        cpu.load_and_run(instructions);
+        assert!(cpu.flags.contains(check), "Cpu Flags is {:#b}", cpu.flags.bits());
+    }
+
+    // SB1 Testing
     #[test]
     fn test_php() {
         let mut cpu = CPU::new();
-        cpu.load_and_run(vec![0x08, 0x00]);
-        assert!(
-            cpu.memory[(0x0100 + cpu.sp.wrapping_add(1) as u16) as usize] == 0b00110100,
-            "pushed value is {:#b}",
-            cpu.memory[(cpu.sp + 1) as usize]
-        )
+        stack_push_test(&mut cpu, vec![0x08], 0b00110100);
     }
+
+    // CLC Test
+    #[test]
+    fn test_clc(){
+        let mut cpu = CPU::new();
+        flag_removal_test(&mut cpu, vec![0x18], CpuFlags::CARRY);
+    }
+
+    #[test]
+    fn test_plp(){
+        let mut cpu = CPU::new();
+        cpu.stack_push(FULLFLAGS.bits());
+        cpu.load_and_run(vec![0x28]);
+        assert!(cpu.flags == FULLFLAGS);
+    }
+
+    #[test]
+    fn test_sec(){
+        let mut cpu = CPU::new();
+        flag_insert_test(&mut cpu, vec![0x38], CpuFlags::CARRY);
+    }
+
+    #[test]
+    fn test_pha(){
+        let mut cpu = CPU::new();
+        // TODO Include test for INY and TYA
+        // Incremeents Y register twice and transfers from Y to A
+        // Then determines if a == 0x02
+        stack_push_test(&mut cpu, vec![0xC8, 0xC8, 0x98, 0x48], 0x02);
+    }
+
+    #[test]
+    fn test_cli(){
+        let mut cpu = CPU::new();
+        flag_removal_test(&mut cpu, vec![0x58], CpuFlags::INTERRUPT_DISABLE);
+    }
+
+
 }
