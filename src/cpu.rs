@@ -1,14 +1,31 @@
+use bitflags::bitflags;
 use std::{ops::Add, thread, time::Duration};
 
 type Byte = u8;
 mod tests;
+
+bitflags! {
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub struct CpuFlags: u8 {
+        const CARRY             = 0b00000001;
+        const ZERO              = 0b00000010;
+        const INTERRUPT_DISABLE = 0b00000100;
+        const DECIMAL_MODE      = 0b00001000;
+        const BREAK             = 0b00010000;
+        const BREAK2            = 0b00100000;
+        const OVERFLOW          = 0b01000000;
+        const NEGATIVE          = 0b10000000;
+    }
+}
+
 pub struct CPU {
     pub pc: u16,
     pub a: Byte,
     pub x: Byte,
     pub y: Byte,
     pub sp: Byte,
-    pub flags: Byte,
+    pub flags: CpuFlags,
     // address bus
     address: u16,
     // [0x8000... 0xFFFF] is reserved for program ROM
@@ -17,31 +34,19 @@ pub struct CPU {
                               // 256 x 224 pixels(NTSC)
 }
 
-
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
-pub enum AddressingMode{
+pub enum AddressingMode {
     Immediate,
-   ZeroPage,
-   ZeroPage_X,
-   ZeroPage_Y,
-   Absolute,
-   Absolute_X,
-   Absolute_Y,
-   Indirect_X,
-   Indirect_Y,
-   NoneAddressing,
-}
-#[derive(Debug, Clone, Copy)]
-pub enum CpuFlags {
-    Carry = 0b00000001,
-    Zero = 0b00000010,
-    InterruptDisable = 0b00000100,
-    DecimalMode = 0b00001000,
-    Break = 0b00010000,
-    Break2 = 0b00100000,
-    Overflow = 0b01000000,
-    Negative = 0b10000000,
+    ZeroPage,
+    ZeroPage_X,
+    ZeroPage_Y,
+    Absolute,
+    Absolute_X,
+    Absolute_Y,
+    Indirect_X,
+    Indirect_Y,
+    NoneAddressing,
 }
 
 const STACK_RESET: u8 = 0xFD;
@@ -55,7 +60,7 @@ impl CPU {
             x: 0,
             y: 0,
             sp: STACK_RESET,
-            flags: 0b00100100,
+            flags: CpuFlags::from_bits_truncate(0b00100100),
             address: 0,
             memory: [0; 0xFFFF],
             clock_time: Duration::from_millis(1), // Example value
@@ -64,46 +69,58 @@ impl CPU {
 
     // Used to read address in little endian
     fn mem_read_u16(&mut self, pos: u16) -> u16 {
-       let lo = self.mem_read(pos) as u16;
-       let hi = self.mem_read(pos + 1) as u16;
-       (hi << 8) | (lo as u16)
-   }
+        let lo = self.mem_read(pos) as u16;
+        let hi = self.mem_read(pos + 1) as u16;
+        (hi << 8) | (lo as u16)
+    }
 
-   // Writes to address in terms of little endian
-   fn mem_write_u16(&mut self, pos: u16, data: u16) {
-       let hi = (data >> 8) as u8;
-       let lo = (data & 0xff) as u8;
-       self.mem_write(pos, lo);
-       self.mem_write(pos + 1, hi);
-   }
+    // Writes to address in terms of little endian
+    fn mem_write_u16(&mut self, pos: u16, data: u16) {
+        let hi = (data >> 8) as u8;
+        let lo = (data & 0xff) as u8;
+        self.mem_write(pos, lo);
+        self.mem_write(pos + 1, hi);
+    }
 
-   // Restores registers and initalizes PC to the 2 byte value at 0xFFFC
-   pub fn reset(&mut self){
+    // Restores registers and initalizes PC to the 2 byte value at 0xFFFC
+    pub fn reset(&mut self) {
         self.a = 0;
         self.x = 0;
         self.y = 0;
-        self.flags = 0b00100100;
+        self.flags = CpuFlags::from_bits_truncate(0b00100100);
         self.sp = STACK_RESET;
         self.pc = self.mem_read_u16(0xFFFC);
-   }
+    }
 
-   pub fn load(&mut self, program: Vec<u8>){
-    self.memory[0x8000..(0x8000 + program.len())].copy_from_slice(&program[..]);
-    self.mem_write_u16(0xFFFC, 0x8000); // Save reference to program in 0xFFFC
-   }
+    pub fn load(&mut self, program: Vec<u8>) {
+        self.memory[0x8000..(0x8000 + program.len())].copy_from_slice(&program[..]);
+        self.mem_write_u16(0xFFFC, 0x8000); // Save reference to program in 0xFFFC
+    }
 
-   pub fn load_and_run(&mut self, program: Vec<u8>){
-    println!("in load and run!");
-    self.load(program);
-    self.reset();
-    self.run();
-   }
+    pub fn load_and_run(&mut self, program: Vec<u8>) {
+        println!("in load and run!");
+        self.load(program);
+        self.reset();
+        self.run();
+    }
 
     // used to update the flag based on the given values
     // Z = result == 0
     // N = result bit 7
     pub fn zero_negative_flag(&mut self, value: Byte) {
-        self.flags = (self.flags & 0x7D) | (value & 0x80) | ((if value == 0 { 1 } else { 0 }) << 1);
+        if value == 0 {
+            self.flags.insert(CpuFlags::ZERO);
+        } else {
+            self.flags.remove(CpuFlags::ZERO);
+        }
+
+        let neg_flag = value >> 7;
+
+        if neg_flag == 1 {
+            self.flags.insert(CpuFlags::NEGATIVE);
+        } else {
+            self.flags.remove(CpuFlags::NEGATIVE);
+        }
     }
 
     fn mem_read(&mut self, addr: u16) -> Byte {
@@ -117,7 +134,6 @@ impl CPU {
         self.pc += 1;
         ret
     }
-
 
     pub fn run(&mut self) {
         loop {
@@ -146,82 +162,88 @@ impl CPU {
     }
 
     fn get_operand_address(&mut self, mode: &AddressingMode) -> u16 {
+        match mode {
+            AddressingMode::Immediate => self.pc,
 
-       match mode {
-           AddressingMode::Immediate => self.pc,
+            AddressingMode::ZeroPage => self.mem_read(self.pc) as u16,
 
-           AddressingMode::ZeroPage  => self.mem_read(self.pc) as u16,
-          
-           AddressingMode::Absolute => self.mem_read_u16(self.pc),
-        
-           AddressingMode::ZeroPage_X => {
-               let pos = self.mem_read(self.pc);
-               let addr = pos.wrapping_add(self.x) as u16;
-               addr
-           }
-           AddressingMode::ZeroPage_Y => {
-               let pos = self.mem_read(self.pc);
-               let addr = pos.wrapping_add(self.y) as u16;
-               addr
-           }
+            AddressingMode::Absolute => self.mem_read_u16(self.pc),
 
-           AddressingMode::Absolute_X => {
-               let base = self.mem_read_u16(self.pc);
-               let addr = base.wrapping_add(self.x as u16);
-               addr
-           }
-           AddressingMode::Absolute_Y => {
-               let base = self.mem_read_u16(self.pc);
-               let addr = base.wrapping_add(self.y as u16);
-               addr
-           }
+            AddressingMode::ZeroPage_X => {
+                let pos = self.mem_read(self.pc);
+                let addr = pos.wrapping_add(self.x) as u16;
+                addr
+            }
+            AddressingMode::ZeroPage_Y => {
+                let pos = self.mem_read(self.pc);
+                let addr = pos.wrapping_add(self.y) as u16;
+                addr
+            }
 
-           // (c0, X)
-           // Looks at the address at LSB = c0 + X and MSB = c0 + X + 1 => Address LSB + MSB
-           AddressingMode::Indirect_X => {
-               let base = self.mem_read(self.pc);
+            AddressingMode::Absolute_X => {
+                let base = self.mem_read_u16(self.pc);
+                let addr = base.wrapping_add(self.x as u16);
+                addr
+            }
+            AddressingMode::Absolute_Y => {
+                let base = self.mem_read_u16(self.pc);
+                let addr = base.wrapping_add(self.y as u16);
+                addr
+            }
 
-               let ptr: u8 = (base as u8).wrapping_add(self.x);
-               let lo = self.mem_read(ptr as u16);
-               let hi = self.mem_read(ptr.wrapping_add(1) as u16);
-               (hi as u16) << 8 | (lo as u16)
-           }
-           //($c0), Y
-           // Look at address at LSB = c0 and MSB = C0 + 1 => Address LSB + MSB + Y
-           AddressingMode::Indirect_Y => {
-               let base = self.mem_read(self.pc);
+            // (c0, X)
+            // Looks at the address at LSB = c0 + X and MSB = c0 + X + 1 => Address LSB + MSB
+            AddressingMode::Indirect_X => {
+                let base = self.mem_read(self.pc);
 
-               let lo = self.mem_read(base as u16);
-               let hi = self.mem_read((base as u8).wrapping_add(1) as u16);
-               let deref_base = (hi as u16) << 8 | (lo as u16);
-               let deref = deref_base.wrapping_add(self.y as u16);
-               deref
-           }
-         
-           AddressingMode::NoneAddressing => {
-               panic!("mode {:?} is not supported", mode);
-           }
-       }
+                let ptr: u8 = (base as u8).wrapping_add(self.x);
+                let lo = self.mem_read(ptr as u16);
+                let hi = self.mem_read(ptr.wrapping_add(1) as u16);
+                (hi as u16) << 8 | (lo as u16)
+            }
+            //($c0), Y
+            // Look at address at LSB = c0 and MSB = C0 + 1 => Address LSB + MSB + Y
+            AddressingMode::Indirect_Y => {
+                let base = self.mem_read(self.pc);
 
-   }
+                let lo = self.mem_read(base as u16);
+                let hi = self.mem_read((base as u8).wrapping_add(1) as u16);
+                let deref_base = (hi as u16) << 8 | (lo as u16);
+                let deref = deref_base.wrapping_add(self.y as u16);
+                deref
+            }
 
-   fn stack_push(&mut self, data: u8){
-    self.mem_write((STACK as u16) + self.sp as u16, data);
-    self.sp = self.sp.wrapping_sub(1);
-   }
-
-   fn stack_pull(&mut self) -> u8{
-    let ret = self.mem_read((STACK as u16) + self.sp as u16);
-    self.sp = self.sp.wrapping_add(1);
-    ret
-   }
-
-    fn php(&mut self){
-        let mut flags = self.flags.clone();
-        flags |= 0b00110000;
-        self.stack_push(flags);
+            AddressingMode::NoneAddressing => {
+                panic!("mode {:?} is not supported", mode);
+            }
+        }
     }
-    
+
+    fn stack_push(&mut self, data: u8) {
+        self.mem_write((STACK as u16) + self.sp as u16, data);
+        self.sp = self.sp.wrapping_sub(1);
+    }
+
+    fn stack_pop(&mut self) -> u8 {
+        let ret = self.mem_read((STACK as u16) + self.sp as u16);
+        self.sp = self.sp.wrapping_add(1);
+        ret
+    }
+
+    // PHP(push processor status) stores a Byte to the stack containing the flags NV11DDIZC and decrements stack pointer
+    // Note B Flag is marked as 1 for PHP
+    fn php(&mut self) {
+        let mut flags = self.flags.clone();
+        flags.insert(CpuFlags::BREAK);
+        flags.insert(CpuFlags::BREAK2);
+        self.stack_push(flags.bits());
+    }
+
+    fn plp(&mut self) {
+        self.flags = CpuFlags::from_bits_truncate(self.stack_pop());
+        // BUG the B flag and extra bit are ignored, but unknown if need to initalize to specific values
+    }
+
     // Used for grouping addressing modes
     fn sb_one(&mut self, highnibble: u8) {
         println!("In single Byte!");
@@ -230,81 +252,38 @@ impl CPU {
         // lower nibble of opcode is 0x_8(eg. 0x08...0xF8)
         // Pattern represents (_ _ _ _ 1000)
         match highnibble {
-            0 => {
-                // PHP(push processor status) stores a Byte to the stack containing the flags NV11DDIZC and decrements stack pointer
-                // Note B Flag is marked as 1 for PHP
-                self.php();
-                
-            }
-            1 => {
-                // CLC(Clear carry flag) clears the carry flag
-                self.flags &= 0xFE;
-            }
-            2 => {
-                // PLP(Pull processor status) increments the stack pointer and loads the value into the stack position into the 6 status flags
-                // NVxxDIZC
-                todo!("PLP")
-            }
-            3 => {
-                // SEC(set carry) sets carry flag to 1
-                self.flags |= 0x01
-            }
-            4 => {
-                // PHA(Push A) stores the value of A to the current stack position
-                todo!("PHA")
-            }
-            5 => {
-                // CLI(Clear Interrupt Disable) clears the interrupt disable flag
-                self.flags &= 0xFB;
-            }
-            6 => {
-                // PLA(Pull A) increments the stack pointer and loads the value at that stack position into A
-                todo!("PLA")
-            }
-            7 => {
-                //SEI(Set Interrupt Disable) sets the interrupt disable flag
-                // BUG The effect is delayed on instruction(not implemented yet)
-                // IRQ allows this and next instruction to be serviced
-                self.flags |= 0x04
-            }
-            8 => {
-                // DEY subtracts 1 from the Y register
-                self.y -= 1;
-                self.zero_negative_flag(self.y);
-            }
-            9 => {
-                // TYA transfers the Y register to the accumulator
-                self.a = self.y;
-                self.zero_negative_flag(self.a);
-            }
-            10 => {
-                // TAY transfer accumulator to register
-                self.y = self.a;
-                self.zero_negative_flag(self.y);
-            }
-            11 => {
-                // CLV clears the overflow tag
-                self.flags &= 0xBF;
-            }
-            12 => {
-                // INY increases the Y register
-                self.y += 1;
-                self.zero_negative_flag(self.y);
-            }
-            13 => {
-                // CLD clears the decimal flag
-                self.flags &= 0xF7;
-            }
-            14 => {
-                // INX increases the X register
-                self.x += 1;
-                self.zero_negative_flag(self.x);
-            }
-            15 => {
-                // SED sets the decimal flag
-                self.flags |= 0x8
-            }
+            0 => self.php(),
+            // CLC clears Carry flag
+            1 => self.flags.remove(CpuFlags::CARRY),
+            2 => self.plp(),
+            // SEC(set carry) sets carry flag to 1
+            3 => self.flags.insert(CpuFlags::CARRY),
+            // PHA(Push A) stores the value of A to the current stack position
+            4 => todo!("PHA"),
+            // CLI(Clear Interrupt Disable) clears the interrupt disable flag
+            5 => self.flags.remove(CpuFlags::INTERRUPT_DISABLE),
+            // PLA(Pull A) increments the stack pointer and loads the value at that stack position into A
+            6 =>
+                todo!("PLA"),
+            //SEI(Set Interrupt Disable) sets the interrupt disable flag
+            7 => self.flags.insert(CpuFlags::INTERRUPT_DISABLE),
+            // DEY subtracts 1 from the Y register
+            8 => todo!("DEY"),
+            // TYA transfers the Y register to the accumulator
+            9 => todo!("TYA"),
+            // TAY transfer accumulator to register
+            10 => todo!("TAY"),
 
+            // CLV clears the overflow tag
+            11 => self.flags.remove(CpuFlags::OVERFLOW),
+            // INY increases the Y register
+            12 => todo!("INY"),
+            // CLD clears the decimal flag
+            13 => self.flags.remove(CpuFlags::DECIMAL_MODE),
+            // INX increases the X register
+            14 => todo!("INX"),
+            // SED sets the decimal flag
+            15 => self.flags.insert(CpuFlags::DECIMAL_MODE),
             _ => unimplemented!("Unknown high nibble {} for SB1)", highnibble),
         }
     }
@@ -361,9 +340,9 @@ impl CPU {
         self.zero_negative_flag(self.a);
     }
 
-    fn group_one_bbb(&mut self, bbb: u8) -> AddressingMode{
+    fn group_one_bbb(&mut self, bbb: u8) -> AddressingMode {
         println!("in bbb");
-        match bbb{
+        match bbb {
             0 => AddressingMode::Indirect_X,
             1 => AddressingMode::ZeroPage,
             2 => AddressingMode::Immediate,
