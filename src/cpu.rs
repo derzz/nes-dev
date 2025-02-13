@@ -244,6 +244,40 @@ impl CPU {
         // BUG the B flag and extra bit are ignored, but unknown if need to initalize to specific values
     }
 
+    fn pha(&mut self){
+        self.stack_push(self.a);
+    }
+
+    fn pla(&mut self){
+        self.a = self.stack_pop();
+        self.zero_negative_flag(self.a);
+    }
+
+    fn dey(&mut self){
+        self.y = self.y.wrapping_sub(1);
+        self.zero_negative_flag(self.y);
+    }
+
+    fn tya(&mut self){
+        self.a = self.y;
+        self.zero_negative_flag(self.a);
+    }
+
+    fn tay(&mut self){
+        self.y = self.a;
+        self.zero_negative_flag(self.y);
+    }
+
+    fn iny(&mut self){
+        self.y = self.y.wrapping_add(1);
+        self.zero_negative_flag(self.y)
+    }
+
+    fn inx(&mut self){
+        self.x = self.x.wrapping_add(1);
+        self.zero_negative_flag(self.x);
+    }
+
     // Used for grouping addressing modes
     fn sb_one(&mut self, highnibble: u8) {
         println!("In single Byte!");
@@ -259,29 +293,28 @@ impl CPU {
             // SEC(set carry) sets carry flag to 1
             3 => self.flags.insert(CpuFlags::CARRY),
             // PHA(Push A) stores the value of A to the current stack position
-            4 => todo!("PHA"),
+            4 => self.pha(),
             // CLI(Clear Interrupt Disable) clears the interrupt disable flag
             5 => self.flags.remove(CpuFlags::INTERRUPT_DISABLE),
             // PLA(Pull A) increments the stack pointer and loads the value at that stack position into A
             6 =>
-                todo!("PLA"),
+                self.pla(),
             //SEI(Set Interrupt Disable) sets the interrupt disable flag
             7 => self.flags.insert(CpuFlags::INTERRUPT_DISABLE),
             // DEY subtracts 1 from the Y register
-            8 => todo!("DEY"),
+            8 => self.dey(),
             // TYA transfers the Y register to the accumulator
-            9 => todo!("TYA"),
-            // TAY transfer accumulator to register
-            10 => todo!("TAY"),
-
+            9 => self.tya(),
+            // TAY transfer accumulator to Y register
+            10 => self.tay(),
             // CLV clears the overflow tag
             11 => self.flags.remove(CpuFlags::OVERFLOW),
             // INY increases the Y register
-            12 => todo!("INY"),
+            12 => self.iny(),
             // CLD clears the decimal flag
             13 => self.flags.remove(CpuFlags::DECIMAL_MODE),
             // INX increases the X register
-            14 => todo!("INX"),
+            14 => self.inx(),
             // SED sets the decimal flag
             15 => self.flags.insert(CpuFlags::DECIMAL_MODE),
             _ => unimplemented!("Unknown high nibble {} for SB1)", highnibble),
