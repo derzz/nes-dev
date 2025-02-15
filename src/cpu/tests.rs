@@ -1,9 +1,8 @@
-use crate::cpu::CPU;
 use crate::cpu::CpuFlags;
+use crate::cpu::CPU;
 
 const FULLFLAGS: CpuFlags = CpuFlags::from_bits_truncate(0b11111111);
 const EMPTYFLAGS: CpuFlags = CpuFlags::from_bits_truncate(0b00000000);
-
 
 #[cfg(test)]
 mod cpu_test {
@@ -38,8 +37,7 @@ mod cpu_test {
         assert_eq!(cpu.a, 0x55);
     }
 
-
-    fn stack_push_test(cpu: &mut CPU, instructions: Vec<u8>, check: u8){
+    fn stack_push_test(cpu: &mut CPU, instructions: Vec<u8>, check: u8) {
         cpu.load_and_run(instructions);
         assert!(
             cpu.memory[(0x0100 + cpu.sp.wrapping_add(1) as u16) as usize] == check,
@@ -48,18 +46,25 @@ mod cpu_test {
         )
     }
 
-
-    fn flag_removal_test(cpu: &mut CPU, instructions: Vec<u8>, check: CpuFlags){
+    fn flag_removal_test(cpu: &mut CPU, instructions: Vec<u8>, check: CpuFlags) {
         cpu.flags = FULLFLAGS;
         // Instruction should only be checking removal of one flag
         cpu.load_and_run(instructions);
-        assert!(!cpu.flags.contains(check), "Cpu Flags is {:#b}", cpu.flags.bits());
-    }  
+        assert!(
+            !cpu.flags.contains(check),
+            "Cpu Flags is {:#b}",
+            cpu.flags.bits()
+        );
+    }
 
-    fn flag_insert_test(cpu: &mut CPU, instructions: Vec<u8>, check: CpuFlags){
+    fn flag_insert_test(cpu: &mut CPU, instructions: Vec<u8>, check: CpuFlags) {
         cpu.flags = EMPTYFLAGS;
         cpu.load_and_run(instructions);
-        assert!(cpu.flags.contains(check), "Cpu Flags is {:#b}", cpu.flags.bits());
+        assert!(
+            cpu.flags.contains(check),
+            "Cpu Flags is {:#b}",
+            cpu.flags.bits()
+        );
     }
 
     // SB1 Testing
@@ -71,27 +76,30 @@ mod cpu_test {
 
     // CLC Test
     #[test]
-    fn test_clc(){
+    fn test_clc() {
         let mut cpu = CPU::new();
         flag_removal_test(&mut cpu, vec![0x18], CpuFlags::CARRY);
     }
 
     #[test]
-    fn test_plp(){
+    fn test_plp() {
         let mut cpu = CPU::new();
-        cpu.stack_push(FULLFLAGS.bits());
-        cpu.load_and_run(vec![0x28]);
-        assert!(cpu.flags == FULLFLAGS);
+        cpu.load_and_run(vec![0x38, 0x78, 0xF8, 0x08, 0x28]);
+        assert!(
+            cpu.flags.bits() == 0b00101101,
+            "Cpu Flags are {:#b}",
+            cpu.flags
+        );
     }
 
     #[test]
-    fn test_sec(){
+    fn test_sec() {
         let mut cpu = CPU::new();
         flag_insert_test(&mut cpu, vec![0x38], CpuFlags::CARRY);
     }
 
     #[test]
-    fn test_pha(){
+    fn test_pha() {
         let mut cpu = CPU::new();
         // TODO Include test for INY and TYA
         // Incremeents Y register twice and transfers from Y to A
@@ -100,10 +108,48 @@ mod cpu_test {
     }
 
     #[test]
-    fn test_cli(){
+    fn test_cli() {
         let mut cpu = CPU::new();
         flag_removal_test(&mut cpu, vec![0x58], CpuFlags::INTERRUPT_DISABLE);
     }
 
+    #[test]
+    fn test_pla() {
+        let mut cpu = CPU::new();
+        // Increments Y register twice and transfers from Y to A
+        // Pushes onto stack
+        // Pulls from stack and tests if equals 2
+        cpu.load_and_run(vec![0xC8, 0xC8, 0x98, 0x48, 0x8A, 0x68]);
+        assert!(cpu.a == 0x02);
+    }
 
+    #[test]
+    fn test_sei() {
+        let mut cpu = CPU::new();
+        flag_insert_test(&mut cpu, vec![0x78], CpuFlags::INTERRUPT_DISABLE);
+    }
+
+    #[test]
+    fn test_dey() {
+        let mut cpu = CPU::new();
+        // Adds Y register twice and then subtracts once
+        cpu.load_and_run(vec![0xC8, 0xC8, 0x88]);
+        assert!(cpu.y == 1);
+    }
+
+    #[test]
+    fn test_tya() {
+        let mut cpu = CPU::new();
+        // Increments the Y register and transfers it to a
+        cpu.load_and_run(vec![0xC8, 0x98]);
+        assert!(cpu.a == 1);
+    }
+
+    #[test]
+    fn test_tay() {
+        let mut cpu = CPU::new();
+        // Increments X register, transfers that to a, then transfers a -> y reg
+        cpu.load_and_run(vec![0xE8, 0x8A, 0xA8]);
+        assert!(cpu.a == cpu.y);
+    }
 }

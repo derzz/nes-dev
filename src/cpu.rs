@@ -138,6 +138,7 @@ impl CPU {
     pub fn run(&mut self) {
         loop {
             println!("reading");
+            println!("starting with pc {}", self.pc);
             let op = self.mem_read(self.pc);
 
             let highnibble = op >> 4;
@@ -225,8 +226,9 @@ impl CPU {
     }
 
     fn stack_pop(&mut self) -> u8 {
-        let ret = self.mem_read((STACK as u16) + self.sp as u16);
         self.sp = self.sp.wrapping_add(1);
+        let ret = self.mem_read((STACK as u16) + self.sp as u16);
+        println!("popped {}", ret);
         ret
     }
 
@@ -243,37 +245,39 @@ impl CPU {
         self.flags = CpuFlags::from_bits_truncate(self.stack_pop());
     }
 
-    fn pha(&mut self){
+    fn pha(&mut self) {
         self.stack_push(self.a);
         println!("Pushed {}", self.a);
     }
 
-    fn pla(&mut self){
+    fn pla(&mut self) {
         self.a = self.stack_pop();
         self.zero_negative_flag(self.a);
+        println!("pulled {}", self.a);
     }
 
-    fn dey(&mut self){
+    fn dey(&mut self) {
         self.y = self.y.wrapping_sub(1);
         self.zero_negative_flag(self.y);
     }
 
-    fn tya(&mut self){
+    fn tya(&mut self) {
         self.a = self.y;
         self.zero_negative_flag(self.a);
     }
 
-    fn tay(&mut self){
+    fn tay(&mut self) {
         self.y = self.a;
         self.zero_negative_flag(self.y);
     }
 
-    fn iny(&mut self){
+    fn iny(&mut self) {
         self.y = self.y.wrapping_add(1);
         self.zero_negative_flag(self.y)
     }
 
-    fn inx(&mut self){
+    fn inx(&mut self) {
+        println!("Incrementing x");
         self.x = self.x.wrapping_add(1);
         self.zero_negative_flag(self.x);
     }
@@ -297,8 +301,7 @@ impl CPU {
             // CLI(Clear Interrupt Disable) clears the interrupt disable flag
             5 => self.flags.remove(CpuFlags::INTERRUPT_DISABLE),
             // PLA(Pull A) increments the stack pointer and loads the value at that stack position into A
-            6 =>
-                self.pla(),
+            6 => self.pla(),
             //SEI(Set Interrupt Disable) sets the interrupt disable flag
             7 => self.flags.insert(CpuFlags::INTERRUPT_DISABLE),
             // DEY subtracts 1 from the Y register
@@ -321,48 +324,42 @@ impl CPU {
         }
     }
 
+    fn txa(&mut self) {
+        self.a = self.x;
+        self.zero_negative_flag(self.a);
+    }
+
+    fn tax(&mut self) {
+        self.x = self.a;
+        self.zero_negative_flag(self.x);
+    }
+
+    fn tsx(&mut self) {
+        self.x = self.sp;
+        self.zero_negative_flag(self.x);
+    }
+
+    fn dex(&mut self) {
+        self.x = self.x.wrapping_sub(1);
+        self.zero_negative_flag(self.x);
+    }
+
     pub fn sb_two(&mut self, highnibble: u8) {
-        // Group 2 single byte instructions
+        // Group 2 single byte instructions, lownibble A and high nibble >= 8
+        println!("In sb_two");
         match highnibble {
-            8 => {
-                // TXA
-                self.a = self.x;
-                self.zero_negative_flag(self.a);
-            }
-            9 => {
-                // TXS transfers x to stack pointer
-                self.sp = self.x;
-                // No need to change flags
-            }
-            10 => {
-                // TAX
-                self.x = self.a;
-                self.zero_negative_flag(self.x);
-            }
-            11 => {
-                // TSX
-                self.x = self.sp;
-            }
-            12 => {
-                // DEX
-                self.x -= 1;
-                self.zero_negative_flag(self.x);
-            }
-            13 => {
-                // Phx
-                unimplemented!("Phx not implemented")
-            }
-            14 => {
-                // NOP
-                // BUG may delay time
-                todo!("NOP")
-            }
-            15 => {
-                unimplemented!("Plx not implemented")
-            }
-            _ => {
-                unimplemented!("Unknown highnibble {} with low nibble 0xA(SB2)", highnibble)
-            }
+            // TXA
+            8 => self.txa(),
+            // TXS
+            9 => self.sp = self.x,
+            // TAX
+            10 => self.tax(),
+            11 => self.tsx(),
+            12 => self.dex(),
+            13 => unimplemented!("Phx not implemented"),
+            14 => todo!("NOP"),
+            15 => unimplemented!("Plx not implemented"),
+            _ => unimplemented!("Unknown highnibble {} with low nibble 0xA(SB2)", highnibble),
         }
     }
 
