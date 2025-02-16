@@ -363,13 +363,9 @@ impl CPU {
         }
     }
 
-    // Takes in the address location
-    fn lda(&mut self, addr: u16) {
-        println!("In lda, reading address {}", addr);
-        self.a = self.mem_read(addr);
-        self.zero_negative_flag(self.a);
-    }
-
+    
+    // Used to determine addressing mode based on bbb bits
+    // Can call get_operand_address to then determine how to recieve fields
     fn group_one_bbb(&mut self, bbb: u8) -> AddressingMode {
         println!("in bbb");
         match bbb {
@@ -387,6 +383,84 @@ impl CPU {
         }
     }
 
+    // Takes in the address location
+    fn ora(&mut self, addr: u16){
+        self.a |= self.mem_read(addr);
+        self.zero_negative_flag(self.a);
+    }
+
+    fn and(&mut self, addr: u16){
+        self.a &= self.mem_read(addr);
+        self.zero_negative_flag(self.a);
+    }
+    
+    fn eor(&mut self, addr:u16){
+        self.a ^= self.mem_read(addr);
+        self.zero_negative_flag(self.a);        
+    }
+
+    fn add_to_a(&mut self, val: u8){
+        // val set to signed due to sbc
+        let sum = self.a as u16 + val as u16 + if self.flags.contains(CpuFlags::CARRY){ 1} else{ 0};
+        
+        if sum > 0xFF{
+            self.flags.insert(CpuFlags::CARRY);
+        }
+        else{
+            self.flags.remove(CpuFlags::CARRY);
+        }
+
+        let result = sum as u8; // Truncates as now carry flag is on
+
+        if (result ^ self.a) & (result ^ val) & 0x80 != 0 {
+            // Signed overflow(or underflow) occured
+            self.flags.insert(CpuFlags::OVERFLOW);
+        }
+        else{
+            self.flags.remove(CpuFlags::OVERFLOW);
+        }
+
+        self.a = result;
+        self.zero_negative_flag(self.a);
+
+
+    }
+
+    fn adc(&mut self, addr: u16){
+        let val = self.mem_read(addr);
+        self.add_to_a(val);
+    }
+
+    fn sbc(&mut self, addr: u16){
+        let val = self.mem_read(addr);
+        // wrapping_neg calculates two's complement negation
+        // subtracts 1 to get bitwise not of the memory value
+        self.add_to_a((val as i8).wrapping_neg().wrapping_sub(1) as u8);
+    }
+
+    fn sta(&mut self, addr: u16){
+        self.mem_write(addr, self.a);
+    }
+
+    fn lda(&mut self, addr: u16) {
+        println!("In lda, reading address {}", addr);
+        self.a = self.mem_read(addr);
+        self.zero_negative_flag(self.a);
+    }
+
+    fn cmp(&mut self, addr: u16){
+        let res = self.a - self.mem_read(addr);
+        if res > 0{
+            self.flags.insert(CpuFlags::CARRY);
+        }
+        else if res == 0{
+            self.flags.insert(CpuFlags::ZERO);
+        }else{
+            // Subtraction is negative
+            self.flags.insert(CpuFlags::NEGATIVE);
+        }
+    }
+            
     pub fn group_one(&mut self, aaa: u8, bbb: u8, cc: u8) {
         // Group 1
         println!("In group one");
@@ -394,14 +468,15 @@ impl CPU {
         let mode = self.group_one_bbb(bbb);
         let addr = self.get_operand_address(&mode); // Memory location of the value to extract
         match aaa {
-            5 => {
-                // LDA
-                self.lda(addr);
-                // Bytes read will increment by themselves
-            }
-            _ => {
-                unimplemented!("aaa")
-            }
+            0 => self.ora(addr),
+            1 => self.and(addr),
+            2 => self.eor(addr),
+            3 => self.adc(addr),
+            4 => self.sta(addr),
+            5 => self.lda(addr),
+            6 => self.cmp(addr),
+            7 => self.sbc(addr),
+            _ => unimplemented!("aaa"),
         }
     }
 }
