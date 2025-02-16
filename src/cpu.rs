@@ -1,5 +1,5 @@
 use bitflags::bitflags;
-use std::{ops::Add, thread, time::Duration};
+use std::{ops::Add, sync::Arc, thread, time::Duration};
 
 type Byte = u8;
 mod tests;
@@ -47,6 +47,7 @@ pub enum AddressingMode {
     Indirect_X,
     Indirect_Y,
     NoneAddressing,
+    Accumulator, // Retrieves the vlaue of the accumulator
 }
 
 const STACK_RESET: u8 = 0xFD;
@@ -154,6 +155,8 @@ impl CPU {
                 self.sb_two(highnibble);
             } else if cc == 0x01 {
                 self.group_one(aaa, bbb, cc);
+            } else if cc == 0x10 {
+                self.group_two(aaa, bbb, cc);
             } else if op == 0x00 {
                 return;
             } else {
@@ -165,6 +168,8 @@ impl CPU {
     fn get_operand_address(&mut self, mode: &AddressingMode) -> u16 {
         match mode {
             AddressingMode::Immediate => self.pc,
+
+            AddressingMode::Accumulator => self.a as u16,
 
             AddressingMode::ZeroPage => self.mem_read(self.pc) as u16,
 
@@ -363,11 +368,9 @@ impl CPU {
         }
     }
 
-    
     // Used to determine addressing mode based on bbb bits
     // Can call get_operand_address to then determine how to recieve fields
     fn group_one_bbb(&mut self, bbb: u8) -> AddressingMode {
-        println!("in bbb");
         match bbb {
             0 => AddressingMode::Indirect_X,
             1 => AddressingMode::ZeroPage,
@@ -378,35 +381,40 @@ impl CPU {
             6 => AddressingMode::Absolute_Y,
             7 => AddressingMode::Absolute_Y,
             _ => {
-                unimplemented!("Unknown addressing mode for group 1 {}", bbb);
+                unimplemented!("Unknown addressing mode for group 1 bbb {}", bbb);
             }
         }
     }
 
     // Takes in the address location
-    fn ora(&mut self, addr: u16){
+    fn ora(&mut self, addr: u16) {
         self.a |= self.mem_read(addr);
         self.zero_negative_flag(self.a);
     }
 
-    fn and(&mut self, addr: u16){
+    fn and(&mut self, addr: u16) {
         self.a &= self.mem_read(addr);
         self.zero_negative_flag(self.a);
     }
-    
-    fn eor(&mut self, addr:u16){
+
+    fn eor(&mut self, addr: u16) {
         self.a ^= self.mem_read(addr);
-        self.zero_negative_flag(self.a);        
+        self.zero_negative_flag(self.a);
     }
 
-    fn add_to_a(&mut self, val: u8){
+    fn add_to_a(&mut self, val: u8) {
         // val set to signed due to sbc
-        let sum = self.a as u16 + val as u16 + if self.flags.contains(CpuFlags::CARRY){ 1} else{ 0};
-        
-        if sum > 0xFF{
+        let sum = self.a as u16
+            + val as u16
+            + if self.flags.contains(CpuFlags::CARRY) {
+                1
+            } else {
+                0
+            };
+
+        if sum > 0xFF {
             self.flags.insert(CpuFlags::CARRY);
-        }
-        else{
+        } else {
             self.flags.remove(CpuFlags::CARRY);
         }
 
@@ -415,30 +423,27 @@ impl CPU {
         if (result ^ self.a) & (result ^ val) & 0x80 != 0 {
             // Signed overflow(or underflow) occured
             self.flags.insert(CpuFlags::OVERFLOW);
-        }
-        else{
+        } else {
             self.flags.remove(CpuFlags::OVERFLOW);
         }
 
         self.a = result;
         self.zero_negative_flag(self.a);
-
-
     }
 
-    fn adc(&mut self, addr: u16){
+    fn adc(&mut self, addr: u16) {
         let val = self.mem_read(addr);
         self.add_to_a(val);
     }
 
-    fn sbc(&mut self, addr: u16){
+    fn sbc(&mut self, addr: u16) {
         let val = self.mem_read(addr);
         // wrapping_neg calculates two's complement negation
         // subtracts 1 to get bitwise not of the memory value
         self.add_to_a((val as i8).wrapping_neg().wrapping_sub(1) as u8);
     }
 
-    fn sta(&mut self, addr: u16){
+    fn sta(&mut self, addr: u16) {
         self.mem_write(addr, self.a);
     }
 
@@ -448,23 +453,21 @@ impl CPU {
         self.zero_negative_flag(self.a);
     }
 
-    fn cmp(&mut self, addr: u16){
+    fn cmp(&mut self, addr: u16) {
         let res = self.a - self.mem_read(addr);
-        if res > 0{
+        if res > 0 {
             self.flags.insert(CpuFlags::CARRY);
-        }
-        else if res == 0{
+        } else if res == 0 {
             self.flags.insert(CpuFlags::ZERO);
-        }else{
+        } else {
             // Subtraction is negative
             self.flags.insert(CpuFlags::NEGATIVE);
         }
     }
-            
+
     pub fn group_one(&mut self, aaa: u8, bbb: u8, cc: u8) {
         // Group 1
         println!("In group one");
-        let cmp = aaa == 7;
         let mode = self.group_one_bbb(bbb);
         let addr = self.get_operand_address(&mode); // Memory location of the value to extract
         match aaa {
@@ -477,6 +480,129 @@ impl CPU {
             6 => self.cmp(addr),
             7 => self.sbc(addr),
             _ => unimplemented!("aaa"),
+        }
+    }
+
+    fn group_two_bbb(&self, bbb: u8) -> AddressingMode {
+        match bbb {
+            0 => AddressingMode::Immediate,
+            1 => AddressingMode::ZeroPage,
+            2 => AddressingMode::Accumulator,
+            3 => AddressingMode::Absolute,
+            4 => AddressingMode::ZeroPage_X,
+            5 => AddressingMode::Absolute_X,
+            _ => {
+                unimplemented!("Unknown addressing mode for group 1 {}", bbb);
+            }
+        }
+    }
+
+    fn asl(&mut self, addr: u16) {
+        // Set carry to be bit 7
+        let val = self.mem_read(addr);
+        let carryBit = val >> 7;
+        if carryBit == 1 {
+            self.flags.insert(CpuFlags::CARRY);
+        } else {
+            self.flags.remove(CpuFlags::CARRY);
+        }
+
+        let new_val = val << 1
+
+        self.mem_write(addr, new_val);
+        self.zero_negative_flag(new_val);
+    }
+
+    fn rol(&mut self, addr: u16) {
+        let val = self.mem_read(addr);
+        let carry_in = if self.flags.contains(CpuFlags::CARRY) {
+            1
+        } else {
+            0
+        };
+        let carry_out = (val >> 7);
+
+        if carry_out == 1 {
+            self.flags.insert(CpuFlags::CARRY);
+        } else {
+            self.flags.remove(CpuFlags::CARRY);
+        }
+
+        let new_val = (val << 1) | carry_in;
+        self.mem_write(addr, new_val);
+        self.zero_negative_flag(new_val);
+    }
+
+    fn lsr(&mut self, addr: u16){
+        // Set carry to be bit 0
+        let val = self.mem_read(addr);
+        let carryBit = val & 0b0000001;
+        if carryBit == 1 {
+            self.flags.insert(CpuFlags::CARRY);
+        } else {
+            self.flags.remove(CpuFlags::CARRY);
+        }
+
+        self.mem_write(addr, val >> 1);
+        self.zero_negative_flag(val);
+    }
+
+    fn ror(&mut self, addr: u16){
+        let val = self.mem_read(addr);
+        let carry_in = if self.flags.contains(CpuFlags::CARRY) {
+            1
+        } else {
+            0
+        };
+        let carry_out = val & 0b00000001;
+
+        if carry_out == 1 {
+            self.flags.insert(CpuFlags::CARRY);
+        } else {
+            self.flags.remove(CpuFlags::CARRY);
+        }
+
+        let new_val = (val >> 1) | (carry_in << 7);
+        self.mem_write(addr, new_val);
+        self.zero_negative_flag(new_val);
+    }
+
+    fn stx(&mut self, addr: u16){
+        self.mem_write(addr, self.x)
+    }
+
+    fn ldx(&mut self, addr: u16){
+       self.x = self.mem_read(addr);
+       self.zero_negative_flag(self.x); 
+    }
+
+    fn dec(&mut self, addr: u16){
+        let oldVal = self.mem_read(addr);
+        let newVal = oldVal.wrapping_sub(1);
+        self.mem_write(addr, newVal);
+        self.zero_negative_flag(newVal);
+    }
+
+    fn inc(&mut self, addr: u16){
+        let oldVal = self.mem_read(addr);
+        let newVal = oldVal.wrapping_add(1);
+        self.mem_write(addr, newVal);
+        self.zero_negative_flag(newVal);
+    }
+
+    fn group_two(&mut self, aaa: u8, bbb: u8, cc: u8) {
+        let mode = self.group_two_bbb(bbb);
+        let addr = self.get_operand_address(&mode);
+        match aaa {
+            0 => self.asl(addr),
+            1 => self.rol(addr),
+            2 => self.lsr(addr),
+            3 => self.ror(addr),
+            4 => self.stx(addr),
+            5 => self.ldx(addr),
+            6 => self.dec(addr),
+            7 => self.inc(addr),
+            _ => unimplemented!("Unknown aaa code {}", aaa),
         }
     }
 }
