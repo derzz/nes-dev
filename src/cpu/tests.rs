@@ -39,17 +39,19 @@ mod cpu_test {
 
     fn stack_push_test(cpu: &mut CPU, instructions: Vec<u8>, check: u8) {
         cpu.load_and_run(instructions);
+        // Setting to 4 due to brk doing a stack_push and stack_push_u16
         assert!(
-            cpu.memory[(0x0100 + cpu.sp.wrapping_add(1) as u16) as usize] == check,
-            "pushed value is {:#b}",
-            cpu.memory[(0x0100 + cpu.sp.wrapping_add(1) as u16) as usize]
-        )
+            cpu.memory[(0x0100 + cpu.sp.wrapping_add(4) as u16) as usize] == check,
+            "pushed value is {:#b}, comparing against {:#b}",
+            cpu.memory[(0x0100 + cpu.sp.wrapping_add(4) as u16) as usize], check)
     }
 
     fn flag_removal_test(cpu: &mut CPU, instructions: Vec<u8>, check: CpuFlags) {
         cpu.flags = FULLFLAGS;
         // Instruction should only be checking removal of one flag
-        cpu.load_and_run(instructions);
+        cpu.load(instructions);
+        cpu.pc = cpu.mem_read_u16(0xFFFC);
+        cpu.run();
         assert!(
             !cpu.flags.contains(check),
             "Cpu Flags is {:#b}",
@@ -59,7 +61,9 @@ mod cpu_test {
 
     fn flag_insert_test(cpu: &mut CPU, instructions: Vec<u8>, check: CpuFlags) {
         cpu.flags = EMPTYFLAGS;
-        cpu.load_and_run(instructions);
+        cpu.load(instructions);
+        cpu.pc = cpu.mem_read_u16(0xFFFC);
+        cpu.run();
         assert!(
             cpu.flags.contains(check),
             "Cpu Flags is {:#b}",
@@ -101,7 +105,6 @@ mod cpu_test {
     #[test]
     fn test_pha() {
         let mut cpu = CPU::new();
-        // TODO Include test for INY and TYA
         // Incremeents Y register twice and transfers from Y to A
         // Then determines if a == 0x02
         stack_push_test(&mut cpu, vec![0xC8, 0xC8, 0x98, 0x48], 0x02);
@@ -109,8 +112,18 @@ mod cpu_test {
 
     #[test]
     fn test_cli() {
+        // Interrupt disable checking is interesting as it will reenable due to BRK
+        // Testing by pushing the flags with PHP and then checking that.
         let mut cpu = CPU::new();
-        flag_removal_test(&mut cpu, vec![0x58], CpuFlags::INTERRUPT_DISABLE);
+        cpu.flags = FULLFLAGS;
+        cpu.load(vec![0x58, 0x08]);
+        cpu.pc = cpu.mem_read_u16(0xFFFC);
+        cpu.run();
+        let check = 0b1111_1011;
+        assert!(
+            cpu.memory[(0x0100 + cpu.sp.wrapping_add(4) as u16) as usize] == check,
+            "pushed value is {:#b}, comparing against {:#b}",
+            cpu.memory[(0x0100 + cpu.sp.wrapping_add(4) as u16) as usize], check)
     }
 
     #[test]
@@ -154,33 +167,33 @@ mod cpu_test {
     }
 
     #[test]
-    fn test_clv(){
+    fn test_clv() {
         let mut cpu = CPU::new();
         flag_removal_test(&mut cpu, vec![0xB8], CpuFlags::OVERFLOW);
     }
 
     #[test]
-    fn test_iny(){
+    fn test_iny() {
         let mut cpu = CPU::new();
         cpu.load_and_run(vec![0xC8]);
         assert!(cpu.y == 1);
     }
 
     #[test]
-    fn test_cld(){
+    fn test_cld() {
         let mut cpu = CPU::new();
         flag_removal_test(&mut cpu, vec![0xD8], CpuFlags::DECIMAL_MODE);
     }
 
     #[test]
-    fn test_inx(){
+    fn test_inx() {
         let mut cpu = CPU::new();
         cpu.load_and_run(vec![0xE8]);
         assert!(cpu.x == 1)
     }
 
     #[test]
-    fn test_sed(){
+    fn test_sed() {
         let mut cpu = CPU::new();
         flag_insert_test(&mut cpu, vec![0xF8], CpuFlags::DECIMAL_MODE);
     }

@@ -72,11 +72,11 @@ impl CPU {
     // Used to read address in little endian
     fn mem_read_u16(&mut self, pos: u16) -> u16 {
         // If interrupt request is enabled, stop program exectuion
-        if pos == 0xFFFE && self.flags.contains(CpuFlags::INTERRUPT_DISABLE){
+        if pos == 0xFFFE && self.flags.contains(CpuFlags::INTERRUPT_DISABLE) {
             // BUG Used for irq handler, mitigating for now
             println!("mem_read_u16: Detected break. Reading from IRQ handler...");
-            return 0xFFFF
-        } 
+            return 0xFFFF;
+        }
         let lo = self.mem_read(pos) as u16;
         let hi = self.mem_read(pos + 1) as u16;
         (hi << 8) | (lo as u16)
@@ -150,7 +150,7 @@ impl CPU {
         println!("run: Initalized");
         loop {
             println!("run: Reading values, starting with pc {}", self.pc);
-            if self.pc == 0xFFFF && self.flags.contains(CpuFlags::INTERRUPT_DISABLE){
+            if self.pc == 0xFFFF && self.flags.contains(CpuFlags::INTERRUPT_DISABLE) {
                 println!("run: IRQ detected, most likely from a brk. Stopping execution...");
                 return;
             }
@@ -158,7 +158,10 @@ impl CPU {
 
             let highnibble = op >> 4;
             let lownibble = op & 0x0F;
-            println!("run: Highnibble is {} and lownibble is {}", highnibble, lownibble);
+            println!(
+                "run: Highnibble is {} and lownibble is {}",
+                highnibble, lownibble
+            );
             let aaa = op >> 5;
             let bbb = (op >> 2) & 0x7;
             let cc = op & 0x3; // Used for identification of group 1, 2, and 3
@@ -175,7 +178,7 @@ impl CPU {
                 self.group_three(aaa, bbb, cc);
             } else if cc == 0x11 {
                 unimplemented!("cc = 11 is not implemented. This is fulfilled by the 65816 cpu.")
-            }  else {
+            } else {
                 unimplemented!("Unknown opcode {}", op)
             }
         }
@@ -280,8 +283,9 @@ impl CPU {
     }
 
     fn pha(&mut self) {
+        println!("pha: Initalized");
         self.stack_push(self.a);
-        println!("pha: Pushed {}", self.a);
+        println!("pha: Pushed {}", self.memory[(0x0100 + self.sp.wrapping_add(1) as u16) as usize]);
     }
 
     fn pla(&mut self) {
@@ -326,7 +330,11 @@ impl CPU {
         match highnibble {
             0 => self.php(),
             // CLC clears Carry flag
-            1 => self.flags.remove(CpuFlags::CARRY),
+            1 => {
+                println!("clc: Initalized");
+                self.flags.remove(CpuFlags::CARRY);
+                println!("clc: Flags are now {:#b}", self.flags);
+            }
             2 => self.plp(),
             // SEC(set carry) sets carry flag to 1
             3 => self.flags.insert(CpuFlags::CARRY),
@@ -392,7 +400,7 @@ impl CPU {
             12 => self.dex(),
             13 => unimplemented!("Phx not implemented"),
             // NOP
-            14 =>  return,
+            14 => return,
             15 => unimplemented!("Plx not implemented"),
             _ => unimplemented!("Unknown highnibble {} with low nibble 0xA(SB2)", highnibble),
         }
@@ -720,7 +728,7 @@ impl CPU {
 
     fn brk(&mut self) {
         println!("brk: Initalized");
-        println!("brk: pc is {}" ,self.pc);
+        println!("brk: pc is {}", self.pc);
         self.stack_push_u16(self.pc + 2 - 1);
         self.stack_push(self.flags.bits());
         self.flags.insert(CpuFlags::INTERRUPT_DISABLE);
