@@ -157,6 +157,11 @@ impl CPU {
                 self.group_one(aaa, bbb, cc);
             } else if cc == 0x10 {
                 self.group_two(aaa, bbb, cc);
+            } else if cc == 0x00 {
+                // Conditionals are also included in here
+                self.group_three(aaa, bbb, cc);
+            } else if cc == 0x11 {
+                unimplemented!("cc = 11 is not implemented. This is fulfilled by the 65816 cpu.")
             } else if op == 0x00 {
                 return;
             } else {
@@ -230,11 +235,24 @@ impl CPU {
         self.sp = self.sp.wrapping_sub(1);
     }
 
+    fn stack_push_u16(&mut self, data: u16) {
+        let hi = (data >> 8) as u8;
+        let lo = (data & 0xFF) as u8;
+        self.stack_push(hi);
+        self.stack_push(lo);
+    }
+
     fn stack_pop(&mut self) -> u8 {
         self.sp = self.sp.wrapping_add(1);
         let ret = self.mem_read((STACK as u16) + self.sp as u16);
         println!("popped {}", ret);
         ret
+    }
+
+    fn stack_pop_u16(&mut self) -> u16 {
+        let lo = self.stack_pop() as u16;
+        let hi = self.stack_pop() as u16;
+        hi << 8 | lo
     }
 
     // PHP(push processor status) stores a Byte to the stack containing the flags NV11DDIZC and decrements stack pointer
@@ -453,8 +471,10 @@ impl CPU {
         self.zero_negative_flag(self.a);
     }
 
-    fn cmp(&mut self, addr: u16) {
-        let res = self.a - self.mem_read(addr);
+    // Used for CPY, CMP, CPX
+    fn compare(&mut self, addr: u16, val: u8) {
+        let res = val - self.mem_read(addr);
+
         if res > 0 {
             self.flags.insert(CpuFlags::CARRY);
         } else if res == 0 {
@@ -463,6 +483,10 @@ impl CPU {
             // Subtraction is negative
             self.flags.insert(CpuFlags::NEGATIVE);
         }
+    }
+
+    fn cmp(&mut self, addr: u16) {
+        self.compare(addr, self.a);
     }
 
     pub fn group_one(&mut self, aaa: u8, bbb: u8, cc: u8) {
@@ -483,7 +507,8 @@ impl CPU {
         }
     }
 
-    fn group_two_bbb(&self, bbb: u8) -> AddressingMode {
+    // Group Two Functions
+    fn group_two_three_bbb(&self, bbb: u8) -> AddressingMode {
         match bbb {
             0 => AddressingMode::Immediate,
             1 => AddressingMode::ZeroPage,
@@ -507,7 +532,7 @@ impl CPU {
             self.flags.remove(CpuFlags::CARRY);
         }
 
-        let new_val = val << 1
+        let new_val = val << 1;
 
         self.mem_write(addr, new_val);
         self.zero_negative_flag(new_val);
@@ -533,7 +558,7 @@ impl CPU {
         self.zero_negative_flag(new_val);
     }
 
-    fn lsr(&mut self, addr: u16){
+    fn lsr(&mut self, addr: u16) {
         // Set carry to be bit 0
         let val = self.mem_read(addr);
         let carryBit = val & 0b0000001;
@@ -547,7 +572,7 @@ impl CPU {
         self.zero_negative_flag(val);
     }
 
-    fn ror(&mut self, addr: u16){
+    fn ror(&mut self, addr: u16) {
         let val = self.mem_read(addr);
         let carry_in = if self.flags.contains(CpuFlags::CARRY) {
             1
@@ -567,23 +592,23 @@ impl CPU {
         self.zero_negative_flag(new_val);
     }
 
-    fn stx(&mut self, addr: u16){
+    fn stx(&mut self, addr: u16) {
         self.mem_write(addr, self.x)
     }
 
-    fn ldx(&mut self, addr: u16){
-       self.x = self.mem_read(addr);
-       self.zero_negative_flag(self.x); 
+    fn ldx(&mut self, addr: u16) {
+        self.x = self.mem_read(addr);
+        self.zero_negative_flag(self.x);
     }
 
-    fn dec(&mut self, addr: u16){
+    fn dec(&mut self, addr: u16) {
         let oldVal = self.mem_read(addr);
         let newVal = oldVal.wrapping_sub(1);
         self.mem_write(addr, newVal);
         self.zero_negative_flag(newVal);
     }
 
-    fn inc(&mut self, addr: u16){
+    fn inc(&mut self, addr: u16) {
         let oldVal = self.mem_read(addr);
         let newVal = oldVal.wrapping_add(1);
         self.mem_write(addr, newVal);
@@ -591,7 +616,7 @@ impl CPU {
     }
 
     fn group_two(&mut self, aaa: u8, bbb: u8, cc: u8) {
-        let mode = self.group_two_bbb(bbb);
+        let mode = self.group_two_three_bbb(bbb);
         let addr = self.get_operand_address(&mode);
         match aaa {
             0 => self.asl(addr),
@@ -603,6 +628,155 @@ impl CPU {
             6 => self.dec(addr),
             7 => self.inc(addr),
             _ => unimplemented!("Unknown aaa code {}", aaa),
+        }
+    }
+
+    fn bit(&mut self, addr: u16) {
+        let val = self.mem_read(addr);
+        if self.a & val == 0 {
+            self.flags.insert(CpuFlags::ZERO);
+        } else {
+            self.flags.remove(CpuFlags::ZERO);
+        }
+        let overflow = (val >> 6) & 0b01;
+        let negative = val >> 7;
+        if overflow == 1 {
+            self.flags.insert(CpuFlags::OVERFLOW);
+        } else {
+            self.flags.remove(CpuFlags::OVERFLOW);
+        }
+
+        if negative == 1 {
+            self.flags.insert(CpuFlags::NEGATIVE);
+        } else {
+            self.flags.remove(CpuFlags::NEGATIVE);
+        }
+    }
+
+    fn jmp(&mut self, addr: u16) {
+        let mut val: u16 = 0;
+        // Implementing Cpu Bug
+        if addr & 0x0011 == 0xFF {
+            let lo = self.mem_read(addr) as u16;
+            let hi = self.mem_read(addr & 0x1100) as u16; // Allows addressing ending in $FF to not cross the page
+            val = (hi << 8) | (lo as u16)
+        } else {
+            // No bug
+            val = self.mem_read_u16(addr);
+        }
+        self.pc = val;
+    }
+
+    fn jmp_abs(&mut self, addr: u16) {
+        self.pc = self.mem_read_u16(self.pc);
+    }
+
+    fn sty(&mut self, addr: u16) {
+        self.mem_write(addr, self.y);
+    }
+
+    fn ldy(&mut self, addr: u16) {
+        self.y = self.mem_read(addr);
+        self.zero_negative_flag(self.y);
+    }
+
+    fn cpy(&mut self, addr: u16) {
+        self.compare(addr, self.y);
+    }
+
+    fn cpx(&mut self, addr: u16) {
+        self.compare(addr, self.x);
+    }
+
+    // This code will read the next item in the pc and set the pc to jump there with + 1 to go to the next instruction
+    fn branch(&mut self) {
+        let jump = self.mem_read(self.pc) as i8;
+        self.pc = self.pc.wrapping_add(1).wrapping_add(jump as u16);
+    }
+
+    fn if_contain_flag_branch(&mut self, flag: CpuFlags) {
+        if self.flags.contains(flag) {
+            self.branch();
+        }
+    }
+
+    fn if_clear_flag_branch(&mut self, flag: CpuFlags) {
+        if self.flags.contains(flag) {
+            self.branch();
+        }
+    }
+
+    fn brk(&mut self) {
+        self.stack_push_u16(self.pc + 2 - 1);
+        self.stack_push(self.flags.bits());
+        self.flags.insert(CpuFlags::INTERRUPT_DISABLE);
+        // BUG Potential, unknown if this is an indirect jump or direct
+        self.pc = self.mem_read_u16(0xFFFE);
+    }
+
+    fn jsr(&mut self) {
+        // Pushes the 16 bit value after self.pc
+        self.stack_push_u16(self.pc + 2 - 1);
+        self.pc = self.mem_read_u16(self.pc);
+    }
+
+    fn rti(&mut self) {
+        self.flags = CpuFlags::from_bits_truncate(self.stack_pop());
+        self.pc = self.stack_pop_u16();
+    }
+
+    fn rts(&mut self) {
+        self.pc = self.stack_pop_u16();
+        self.pc += 1;
+    }
+
+    fn group_three(&mut self, aaa: u8, bbb: u8, cc: u8) {
+        if bbb == 0b010 {
+            unimplemented!("Group Three bbb does not support accumulator! {}", bbb)
+        } else if bbb == 0b100 {
+            // Checking for branches
+            match aaa {
+                // BPL
+                0b000 => self.if_clear_flag_branch(CpuFlags::NEGATIVE),
+                // BMI
+                0b001 => self.if_contain_flag_branch(CpuFlags::NEGATIVE),
+                // BVC
+                0b010 => self.if_clear_flag_branch(CpuFlags::OVERFLOW),
+                // BVS
+                0b011 => self.if_contain_flag_branch(CpuFlags::OVERFLOW),
+                // BCC
+                0b100 => self.if_clear_flag_branch(CpuFlags::CARRY),
+                // BCS
+                0b101 => self.if_contain_flag_branch(CpuFlags::CARRY),
+                // BNE
+                0b110 => self.if_clear_flag_branch(CpuFlags::ZERO),
+                // BEQ
+                0b111 => self.if_contain_flag_branch(CpuFlags::ZERO),
+                _ => unimplemented!("Unknown branch aaa code {}", aaa),
+            }
+        } else if bbb == 0b000 {
+            // Remaining instructions
+            match aaa {
+                0b000 => self.brk(),
+                0b001 => self.jsr(),
+                0b010 => self.rti(),
+                0b100 => self.rts(),
+                _ => unimplemented!("Unknown aaa code with {}00000", aaa),
+            }
+        } else {
+            // Group Three Instructions
+            let mode = self.group_two_three_bbb(bbb);
+            let addr = self.get_operand_address(&mode);
+            match aaa {
+                1 => self.bit(addr),
+                2 => self.jmp(addr),
+                3 => self.jmp_abs(addr),
+                4 => self.sty(addr),
+                5 => self.ldy(addr),
+                6 => self.cpy(addr),
+                7 => self.cpx(addr),
+                _ => unimplemented!("Unknown aaa code for group three {}", aaa),
+            }
         }
     }
 }
