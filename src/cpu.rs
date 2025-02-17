@@ -52,6 +52,7 @@ pub enum AddressingMode {
 
 const STACK_RESET: u8 = 0xFD;
 const STACK: u16 = 0x0100;
+const CODE_LOCATION: u16 = 0x6000;
 
 impl CPU {
     pub fn new() -> Self {
@@ -70,6 +71,12 @@ impl CPU {
 
     // Used to read address in little endian
     fn mem_read_u16(&mut self, pos: u16) -> u16 {
+        // If interrupt request is enabled, stop program exectuion
+        if pos == 0xFFFE && self.flags.contains(CpuFlags::INTERRUPT_DISABLE){
+            // BUG Used for irq handler, mitigating for now
+            println!("mem_read_u16: Detected break. Reading from IRQ handler...");
+            return 0xFFFF
+        } 
         let lo = self.mem_read(pos) as u16;
         let hi = self.mem_read(pos + 1) as u16;
         (hi << 8) | (lo as u16)
@@ -85,6 +92,7 @@ impl CPU {
 
     // Restores registers and initalizes PC to the 2 byte value at 0xFFFC
     pub fn reset(&mut self) {
+        println!("reset: Initalized");
         self.a = 0;
         self.x = 0;
         self.y = 0;
@@ -94,12 +102,13 @@ impl CPU {
     }
 
     pub fn load(&mut self, program: Vec<u8>) {
+        println!("load: Initalized");
         self.memory[0x8000..(0x8000 + program.len())].copy_from_slice(&program[..]);
         self.mem_write_u16(0xFFFC, 0x8000); // Save reference to program in 0xFFFC
     }
 
     pub fn load_and_run(&mut self, program: Vec<u8>) {
-        println!("in load and run!");
+        println!("load_and_run: Initalized");
         self.load(program);
         self.reset();
         self.run();
@@ -125,6 +134,7 @@ impl CPU {
     }
 
     fn mem_read(&mut self, addr: u16) -> Byte {
+        println!("mem_read: addr is {}", addr);
         let ret = self.memory[addr as usize];
         self.pc += 1;
         ret
@@ -137,18 +147,21 @@ impl CPU {
     }
 
     pub fn run(&mut self) {
+        println!("run: Initalized");
         loop {
-            println!("reading");
-            println!("starting with pc {}", self.pc);
+            println!("run: Reading values, starting with pc {}", self.pc);
+            if self.pc == 0xFFFF && self.flags.contains(CpuFlags::INTERRUPT_DISABLE){
+                println!("run: IRQ detected, most likely from a brk. Stopping execution...");
+                return;
+            }
             let op = self.mem_read(self.pc);
 
             let highnibble = op >> 4;
             let lownibble = op & 0x0F;
-            println!("Highnibble {} and lownibble {}", highnibble, lownibble);
+            println!("run: Highnibble is {} and lownibble is {}", highnibble, lownibble);
             let aaa = op >> 5;
             let bbb = (op >> 2) & 0x7;
             let cc = op & 0x3; // Used for identification of group 1, 2, and 3
-
             if lownibble == 0x8 {
                 self.sb_one(highnibble);
             } else if lownibble == 0xA && highnibble >= 0x8 {
@@ -162,9 +175,7 @@ impl CPU {
                 self.group_three(aaa, bbb, cc);
             } else if cc == 0x11 {
                 unimplemented!("cc = 11 is not implemented. This is fulfilled by the 65816 cpu.")
-            } else if op == 0x00 {
-                return;
-            } else {
+            }  else {
                 unimplemented!("Unknown opcode {}", op)
             }
         }
@@ -245,7 +256,7 @@ impl CPU {
     fn stack_pop(&mut self) -> u8 {
         self.sp = self.sp.wrapping_add(1);
         let ret = self.mem_read((STACK as u16) + self.sp as u16);
-        println!("popped {}", ret);
+        println!("stack_pop: popped {}", ret);
         ret
     }
 
@@ -270,13 +281,13 @@ impl CPU {
 
     fn pha(&mut self) {
         self.stack_push(self.a);
-        println!("Pushed {}", self.a);
+        println!("pha: Pushed {}", self.a);
     }
 
     fn pla(&mut self) {
         self.a = self.stack_pop();
         self.zero_negative_flag(self.a);
-        println!("pulled {}", self.a);
+        println!("pla: pulled {}", self.a);
     }
 
     fn dey(&mut self) {
@@ -300,14 +311,14 @@ impl CPU {
     }
 
     fn inx(&mut self) {
-        println!("Incrementing x");
+        println!("inx: Initalized(Incrementing x)");
         self.x = self.x.wrapping_add(1);
         self.zero_negative_flag(self.x);
     }
 
     // Used for grouping addressing modes
     fn sb_one(&mut self, highnibble: u8) {
-        println!("In single Byte!");
+        println!("sb_one: Initalized");
         // Single Byte instructions, don't need to read Bytes past the value
         // Eg. PHP, CLC, INX
         // lower nibble of opcode is 0x_8(eg. 0x08...0xF8)
@@ -369,7 +380,7 @@ impl CPU {
 
     pub fn sb_two(&mut self, highnibble: u8) {
         // Group 2 single byte instructions, lownibble A and high nibble >= 8
-        println!("In sb_two");
+        println!("sb_two: Initalized");
         match highnibble {
             // TXA
             8 => self.txa(),
@@ -467,7 +478,7 @@ impl CPU {
     }
 
     fn lda(&mut self, addr: u16) {
-        println!("In lda, reading address {}", addr);
+        println!("lda: Initalized, reading address {}", addr);
         self.a = self.mem_read(addr);
         self.zero_negative_flag(self.a);
     }
@@ -492,7 +503,7 @@ impl CPU {
 
     pub fn group_one(&mut self, aaa: u8, bbb: u8, cc: u8) {
         // Group 1
-        println!("In group one");
+        println!("group_one: Initalized");
         let mode = self.group_one_bbb(bbb);
         let addr = self.get_operand_address(&mode); // Memory location of the value to extract
         match aaa {
@@ -708,11 +719,14 @@ impl CPU {
     }
 
     fn brk(&mut self) {
+        println!("brk: Initalized");
+        println!("brk: pc is {}" ,self.pc);
         self.stack_push_u16(self.pc + 2 - 1);
         self.stack_push(self.flags.bits());
         self.flags.insert(CpuFlags::INTERRUPT_DISABLE);
         // BUG Potential, unknown if this is an indirect jump or direct
         self.pc = self.mem_read_u16(0xFFFE);
+        println!("brk: Set pc to {}", self.pc);
     }
 
     fn jsr(&mut self) {

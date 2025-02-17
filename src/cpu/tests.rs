@@ -152,4 +152,36 @@ mod cpu_test {
         cpu.load_and_run(vec![0xE8, 0x8A, 0xA8]);
         assert!(cpu.a == cpu.y);
     }
+
+    #[test]
+    fn test_clv(){
+        let mut cpu = CPU::new();
+        flag_removal_test(&mut cpu, vec![0xB8], CpuFlags::OVERFLOW);
+    }
+
+    #[test]
+    fn test_iny(){
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0xC8]);
+        assert!(cpu.y == 1);
+    }
+
+    #[test]
+    fn test_cld(){
+        let mut cpu = CPU::new();
+        flag_removal_test(&mut cpu, vec![0xD8], CpuFlags::DECIMAL_MODE);
+    }
+
+    #[test]
+    fn test_inx(){
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0xE8]);
+        assert!(cpu.x == 1)
+    }
+
+    #[test]
+    fn test_sed(){
+        let mut cpu = CPU::new();
+        flag_insert_test(&mut cpu, vec![0xF8], CpuFlags::DECIMAL_MODE);
+    }
 }
