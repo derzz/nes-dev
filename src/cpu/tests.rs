@@ -1,12 +1,46 @@
-use crate::cpu::CpuFlags;
-use crate::cpu::CPU;
-
-const FULLFLAGS: CpuFlags = CpuFlags::from_bits_truncate(0b11111111);
-const EMPTYFLAGS: CpuFlags = CpuFlags::from_bits_truncate(0b00000000);
-
 #[cfg(test)]
 mod cpu_test {
-    use super::*;
+    use crate::cpu::CpuFlags;
+    use crate::cpu::CPU;
+
+    const FULLFLAGS: CpuFlags = CpuFlags::from_bits_truncate(0b11111111);
+    const EMPTYFLAGS: CpuFlags = CpuFlags::from_bits_truncate(0b00000000);
+
+    fn stack_push_test(cpu: &mut CPU, instructions: Vec<u8>, check: u8) {
+        cpu.load_and_run(instructions);
+        // Setting to 4 due to brk doing a stack_push and stack_push_u16
+        assert!(
+            cpu.memory[(0x0100 + cpu.sp.wrapping_add(4) as u16) as usize] == check,
+            "pushed value is {:#b}, comparing against {:#b}",
+            cpu.memory[(0x0100 + cpu.sp.wrapping_add(4) as u16) as usize],
+            check
+        )
+    }
+
+    fn flag_removal_test(cpu: &mut CPU, instructions: Vec<u8>, check: CpuFlags) {
+        cpu.flags = FULLFLAGS;
+        // Instruction should only be checking removal of one flag
+        cpu.load(instructions);
+        cpu.pc = cpu.mem_read_u16(0xFFFC);
+        cpu.run();
+        assert!(
+            !cpu.flags.contains(check),
+            "Cpu Flags is {:#b}",
+            cpu.flags.bits()
+        );
+    }
+
+    fn flag_insert_test(cpu: &mut CPU, instructions: Vec<u8>, check: CpuFlags) {
+        cpu.flags = EMPTYFLAGS;
+        cpu.load(instructions);
+        cpu.pc = cpu.mem_read_u16(0xFFFC);
+        cpu.run();
+        assert!(
+            cpu.flags.contains(check),
+            "Cpu Flags is {:#b}",
+            cpu.flags.bits()
+        );
+    }
 
     // Tests LDA, a = 5
     #[test]
@@ -35,40 +69,6 @@ mod cpu_test {
         cpu.load_and_run(vec![0xa5, 0x10, 0x00]);
 
         assert_eq!(cpu.a, 0x55);
-    }
-
-    fn stack_push_test(cpu: &mut CPU, instructions: Vec<u8>, check: u8) {
-        cpu.load_and_run(instructions);
-        // Setting to 4 due to brk doing a stack_push and stack_push_u16
-        assert!(
-            cpu.memory[(0x0100 + cpu.sp.wrapping_add(4) as u16) as usize] == check,
-            "pushed value is {:#b}, comparing against {:#b}",
-            cpu.memory[(0x0100 + cpu.sp.wrapping_add(4) as u16) as usize], check)
-    }
-
-    fn flag_removal_test(cpu: &mut CPU, instructions: Vec<u8>, check: CpuFlags) {
-        cpu.flags = FULLFLAGS;
-        // Instruction should only be checking removal of one flag
-        cpu.load(instructions);
-        cpu.pc = cpu.mem_read_u16(0xFFFC);
-        cpu.run();
-        assert!(
-            !cpu.flags.contains(check),
-            "Cpu Flags is {:#b}",
-            cpu.flags.bits()
-        );
-    }
-
-    fn flag_insert_test(cpu: &mut CPU, instructions: Vec<u8>, check: CpuFlags) {
-        cpu.flags = EMPTYFLAGS;
-        cpu.load(instructions);
-        cpu.pc = cpu.mem_read_u16(0xFFFC);
-        cpu.run();
-        assert!(
-            cpu.flags.contains(check),
-            "Cpu Flags is {:#b}",
-            cpu.flags.bits()
-        );
     }
 
     // SB1 Testing
@@ -123,7 +123,9 @@ mod cpu_test {
         assert!(
             cpu.memory[(0x0100 + cpu.sp.wrapping_add(4) as u16) as usize] == check,
             "pushed value is {:#b}, comparing against {:#b}",
-            cpu.memory[(0x0100 + cpu.sp.wrapping_add(4) as u16) as usize], check)
+            cpu.memory[(0x0100 + cpu.sp.wrapping_add(4) as u16) as usize],
+            check
+        )
     }
 
     #[test]

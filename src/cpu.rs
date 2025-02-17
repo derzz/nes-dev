@@ -1,5 +1,5 @@
 use bitflags::bitflags;
-use std::{ops::Add, sync::Arc, thread, time::Duration};
+use std::time::Duration;
 
 type Byte = u8;
 mod tests;
@@ -26,8 +26,6 @@ pub struct CPU {
     pub y: Byte,
     pub sp: Byte,
     pub flags: CpuFlags,
-    // address bus
-    address: u16,
     // [0x8000... 0xFFFF] is reserved for program ROM
     pub memory: [u8; 0xFFFF],
     pub clock_time: Duration, // TODO change
@@ -52,7 +50,6 @@ pub enum AddressingMode {
 
 const STACK_RESET: u8 = 0xFD;
 const STACK: u16 = 0x0100;
-const CODE_LOCATION: u16 = 0x6000;
 
 impl CPU {
     pub fn new() -> Self {
@@ -63,7 +60,6 @@ impl CPU {
             y: 0,
             sp: STACK_RESET,
             flags: CpuFlags::from_bits_truncate(0b00100100),
-            address: 0,
             memory: [0; 0xFFFF],
             clock_time: Duration::from_millis(1), // Example value
         }
@@ -285,7 +281,10 @@ impl CPU {
     fn pha(&mut self) {
         println!("pha: Initalized");
         self.stack_push(self.a);
-        println!("pha: Pushed {}", self.memory[(0x0100 + self.sp.wrapping_add(1) as u16) as usize]);
+        println!(
+            "pha: Pushed {}",
+            self.memory[(0x0100 + self.sp.wrapping_add(1) as u16) as usize]
+        );
     }
 
     fn pla(&mut self) {
@@ -509,7 +508,7 @@ impl CPU {
         self.compare(addr, self.a);
     }
 
-    pub fn group_one(&mut self, aaa: u8, bbb: u8, cc: u8) {
+    pub fn group_one(&mut self, aaa: u8, bbb: u8, _cc: u8) {
         // Group 1
         println!("group_one: Initalized");
         let mode = self.group_one_bbb(bbb);
@@ -545,8 +544,8 @@ impl CPU {
     fn asl(&mut self, addr: u16) {
         // Set carry to be bit 7
         let val = self.mem_read(addr);
-        let carryBit = val >> 7;
-        if carryBit == 1 {
+        let carry_bit = val >> 7;
+        if carry_bit == 1 {
             self.flags.insert(CpuFlags::CARRY);
         } else {
             self.flags.remove(CpuFlags::CARRY);
@@ -565,7 +564,7 @@ impl CPU {
         } else {
             0
         };
-        let carry_out = (val >> 7);
+        let carry_out = val >> 7;
 
         if carry_out == 1 {
             self.flags.insert(CpuFlags::CARRY);
@@ -581,8 +580,8 @@ impl CPU {
     fn lsr(&mut self, addr: u16) {
         // Set carry to be bit 0
         let val = self.mem_read(addr);
-        let carryBit = val & 0b0000001;
-        if carryBit == 1 {
+        let carry_bit = val & 0b0000001;
+        if carry_bit == 1 {
             self.flags.insert(CpuFlags::CARRY);
         } else {
             self.flags.remove(CpuFlags::CARRY);
@@ -622,20 +621,20 @@ impl CPU {
     }
 
     fn dec(&mut self, addr: u16) {
-        let oldVal = self.mem_read(addr);
-        let newVal = oldVal.wrapping_sub(1);
-        self.mem_write(addr, newVal);
-        self.zero_negative_flag(newVal);
+        let old_val = self.mem_read(addr);
+        let new_val = old_val.wrapping_sub(1);
+        self.mem_write(addr, new_val);
+        self.zero_negative_flag(new_val);
     }
 
     fn inc(&mut self, addr: u16) {
-        let oldVal = self.mem_read(addr);
-        let newVal = oldVal.wrapping_add(1);
-        self.mem_write(addr, newVal);
-        self.zero_negative_flag(newVal);
+        let old_val = self.mem_read(addr);
+        let new_val = old_val.wrapping_add(1);
+        self.mem_write(addr, new_val);
+        self.zero_negative_flag(new_val);
     }
 
-    fn group_two(&mut self, aaa: u8, bbb: u8, cc: u8) {
+    fn group_two(&mut self, aaa: u8, bbb: u8, _cc: u8) {
         let mode = self.group_two_three_bbb(bbb);
         let addr = self.get_operand_address(&mode);
         match aaa {
@@ -674,7 +673,7 @@ impl CPU {
     }
 
     fn jmp(&mut self, addr: u16) {
-        let mut val: u16 = 0;
+        let val: u16;
         // Implementing Cpu Bug
         if addr & 0x0011 == 0xFF {
             let lo = self.mem_read(addr) as u16;
@@ -687,7 +686,7 @@ impl CPU {
         self.pc = val;
     }
 
-    fn jmp_abs(&mut self, addr: u16) {
+    fn jmp_abs(&mut self) {
         self.pc = self.mem_read_u16(self.pc);
     }
 
@@ -753,7 +752,7 @@ impl CPU {
         self.pc += 1;
     }
 
-    fn group_three(&mut self, aaa: u8, bbb: u8, cc: u8) {
+    fn group_three(&mut self, aaa: u8, bbb: u8, _cc: u8) {
         if bbb == 0b010 {
             unimplemented!("Group Three bbb does not support accumulator! {}", bbb)
         } else if bbb == 0b100 {
@@ -793,7 +792,7 @@ impl CPU {
             match aaa {
                 1 => self.bit(addr),
                 2 => self.jmp(addr),
-                3 => self.jmp_abs(addr),
+                3 => self.jmp_abs(),
                 4 => self.sty(addr),
                 5 => self.ldy(addr),
                 6 => self.cpy(addr),
