@@ -380,7 +380,8 @@ impl CPU {
             11 => self.tsx(),
             12 => self.dex(),
             13 => unimplemented!("Phx not implemented"),
-            14 => todo!("NOP"),
+            // NOP
+            14 =>  return,
             15 => unimplemented!("Plx not implemented"),
             _ => unimplemented!("Unknown highnibble {} with low nibble 0xA(SB2)", highnibble),
         }
