@@ -61,7 +61,22 @@ mod sb2_test {
         assert!(!cpu.flags.contains(CpuFlags::ZERO) && cpu.flags.contains(CpuFlags::NEGATIVE));
     }
     #[test]
-    fn test_dex() {}
+    fn test_dex() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![op::DEX]);
+        assert!(cpu.x == 0xFF);
+        assert!(!cpu.flags.contains(CpuFlags::ZERO) && cpu.flags.contains(CpuFlags::NEGATIVE));
+
+        cpu.load_and_run(vec![op::INX, op::DEX]);
+        assert!(cpu.flags.contains(CpuFlags::ZERO) && !cpu.flags.contains(CpuFlags::NEGATIVE));
+
+        cpu.load_and_run(vec![op::INX, op::INX, op::DEX]);
+        assert!(!cpu.flags.contains(CpuFlags::ZERO) && !cpu.flags.contains(CpuFlags::NEGATIVE));
+    }
     #[test]
-    fn test_nop() {}
+    fn test_nop() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![op::NOP]);
+        assert!(cpu.x == 0 && cpu.y == 0 && cpu.a == 0 && cpu.flags == CpuFlags::from_bits_truncate(0b00100100));
+    }
 }
