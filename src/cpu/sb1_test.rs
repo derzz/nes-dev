@@ -44,7 +44,7 @@ mod sb1_test {
     #[test]
     fn test_clc() {
         let mut cpu = CPU::new();
-        test_fn::flag_removal_test(&mut cpu, vec![0x18], CpuFlags::CARRY);
+        test_fn::flag_removal_test(&mut cpu, vec![op::CLC], CpuFlags::CARRY);
     }
 
     #[test]
@@ -67,9 +67,9 @@ mod sb1_test {
     #[test]
     fn test_pha() {
         let mut cpu = CPU::new();
-        // Incremeents Y register twice and transfers from Y to A
+        // Increments Y register twice and transfers from Y to A
         // Then determines if a == 0x02
-        test_fn::stack_push_test(&mut cpu, vec![0xC8, 0xC8, 0x98, 0x48], 0x02);
+        test_fn::stack_push_test(&mut cpu, vec![op::INY, op::INY, op::TYA, op::PHA], 0x02);
     }
 
     #[test]
@@ -78,7 +78,7 @@ mod sb1_test {
         // Testing by pushing the flags with PHP and then checking that.
         let mut cpu = CPU::new();
         cpu.flags = test_fn::FULLFLAGS;
-        cpu.load(vec![0x58, 0x08]);
+        cpu.load(vec![op::CLI, op::PHP]);
         cpu.pc = cpu.mem_read_u16(0xFFFC);
         cpu.run();
         let check = 0b1111_1011;
@@ -96,7 +96,7 @@ mod sb1_test {
         // Increments Y register twice and transfers from Y to A
         // Pushes onto stack
         // Pulls from stack and tests if equals 2
-        cpu.load_and_run(vec![0xC8, 0xC8, 0x98, 0x48, 0x8A, 0x68]);
+        cpu.load_and_run(vec![op::INY, op::INY, op::TYA, op::PHA, op::TXA, op::PLA]);
         assert!(cpu.a == 0x02);
     }
 
@@ -126,14 +126,14 @@ mod sb1_test {
     fn test_tay() {
         let mut cpu = CPU::new();
         // Increments X register, transfers that to a, then transfers a -> y reg
-        cpu.load_and_run(vec![0xE8, 0x8A, 0xA8]);
+        cpu.load_and_run(vec![op::INX, op::TXA, op::TAY]);
         assert!(cpu.a == cpu.y);
     }
 
     #[test]
     fn test_clv() {
         let mut cpu = CPU::new();
-        test_fn::flag_removal_test(&mut cpu, vec![0xB8], CpuFlags::OVERFLOW);
+        test_fn::flag_removal_test(&mut cpu, vec![op::CLV], CpuFlags::OVERFLOW);
     }
 
     #[test]
@@ -146,7 +146,7 @@ mod sb1_test {
     #[test]
     fn test_cld() {
         let mut cpu = CPU::new();
-        test_fn::flag_removal_test(&mut cpu, vec![0xD8], CpuFlags::DECIMAL_MODE);
+        test_fn::flag_removal_test(&mut cpu, vec![op::CLD], CpuFlags::DECIMAL_MODE);
     }
 
     #[test]

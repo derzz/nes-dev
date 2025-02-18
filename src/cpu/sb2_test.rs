@@ -1,10 +1,8 @@
 #[cfg(test)]
 mod sb2_test {
     use crate::cpu::op::*;
-    use crate::cpu::test_fn::*;
     use crate::cpu::CpuFlags;
     use crate::cpu::CPU;
-    use crate::cpu::STACK;
     use crate::cpu::STACK_RESET;
 
     #[test]
