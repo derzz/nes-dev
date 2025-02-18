@@ -1,6 +1,6 @@
 #[cfg(test)]
-pub mod test_fn{
-use crate::cpu::CpuFlags;
+pub mod test_fn {
+    use crate::cpu::CpuFlags;
     use crate::cpu::CPU;
 
     pub const FULLFLAGS: CpuFlags = CpuFlags::from_bits_truncate(0b11111111);

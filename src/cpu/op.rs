@@ -1,6 +1,6 @@
 // Opcodes used in testing, unneeded in cpu.rs due to cpu.rs following specific addressing properties
 #[cfg(test)]
-pub mod op{
+pub mod op {
     // SBI1
     pub const PHP: u8 = 0x08;
     pub const CLC: u8 = 0x18;
@@ -24,7 +24,6 @@ pub mod op{
     pub const TXS: u8 = 0x9A;
     pub const TAX: u8 = 0xAA;
     pub const TSX: u8 = 0xba;
-    pub const DEX:u8 = 0xca;
+    pub const DEX: u8 = 0xca;
     pub const NOP: u8 = 0xea;
-
 }

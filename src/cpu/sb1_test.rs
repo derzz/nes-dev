@@ -1,8 +1,9 @@
 #[cfg(test)]
 mod sb1_test {
+    use crate::cpu::op::*;
+    use crate::cpu::test_fn::*;
     use crate::cpu::CpuFlags;
     use crate::cpu::CPU;
-    use crate::cpu::test_fn::*;
     // Tests LDA, a = 5
     #[test]
     fn test_0xa9_lda_immediate_load_data() {
@@ -49,9 +50,9 @@ mod sb1_test {
     #[test]
     fn test_plp() {
         let mut cpu = CPU::new();
-        cpu.load_and_run(vec![0x38, 0x78, 0xF8, 0x08, 0x28]);
+        cpu.load_and_run(vec![op::SEC, op::SEI, op::SED, op::PHP, op::PLP]);
         assert!(
-            cpu.flags.bits() == 0b00101101,
+            cpu.flags.bits() == 0b00111101,
             "Cpu Flags are {:#b}",
             cpu.flags
         );

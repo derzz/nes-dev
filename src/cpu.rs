@@ -1,9 +1,9 @@
 use bitflags::bitflags;
 use std::time::Duration;
-mod test_fn;
+mod op;
 mod sb1_test;
 mod sb2_test;
-mod op;
+mod test_fn;
 type Byte = u8;
 
 bitflags! {
@@ -30,8 +30,7 @@ pub struct CPU {
     pub flags: CpuFlags,
     // [0x8000... 0xFFFF] is reserved for program ROM
     pub memory: [u8; 0xFFFF],
-    pub clock_time: Duration, // TODO change
-                              // 256 x 224 pixels(NTSC)
+    pub clock_time: Duration, 
 }
 
 #[derive(Debug)]
@@ -135,13 +134,13 @@ impl CPU {
     fn mem_read(&mut self, addr: u16) -> Byte {
         println!("mem_read: addr is {}", addr);
         let ret = self.memory[addr as usize];
-        self.pc = self.pc.wrapping_add(1);
+        // self.pc = self.pc.wrapping_add(1);
         ret
     }
 
     fn mem_write(&mut self, addr: u16, data: u8) {
         let ret = self.memory[addr as usize] = data;
-        self.pc = self.pc.wrapping_add(1);
+        // self.pc = self.pc.wrapping_add(1);
         ret
     }
 
@@ -151,7 +150,7 @@ impl CPU {
             println!("run: Reading values, starting with pc {}", self.pc);
             if self.pc == 0xFFFF && self.flags.contains(CpuFlags::INTERRUPT_DISABLE) {
                 println!("run: IRQ detected, most likely from a brk. Stopping execution...");
-                return;
+                break;
             }
             let op = self.mem_read(self.pc);
 
@@ -166,10 +165,13 @@ impl CPU {
             let cc = op & 0x3; // Used for identification of group 1, 2, and 3
             if lownibble == 0x8 {
                 self.sb_one(highnibble);
+                self.pc = self.pc.wrapping_add(1);
             } else if lownibble == 0xA && highnibble >= 0x8 {
                 self.sb_two(highnibble);
+                self.pc = self.pc.wrapping_add(1);
             } else if cc == 0x01 {
                 self.group_one(aaa, bbb, cc);
+                self.pc = self.pc.wrapping_add(1);
             } else if cc == 0x10 {
                 self.group_two(aaa, bbb, cc);
             } else if cc == 0x00 {
@@ -181,9 +183,11 @@ impl CPU {
                 unimplemented!("Unknown opcode {}", op)
             }
         }
+        println!("===================== END OF CURRENT EXECUTION ===================== ")
     }
 
     fn get_operand_address(&mut self, mode: &AddressingMode) -> u16 {
+        self.pc = self.pc.wrapping_add(1);
         match mode {
             AddressingMode::Immediate => self.pc,
 
@@ -191,7 +195,11 @@ impl CPU {
 
             AddressingMode::ZeroPage => self.mem_read(self.pc) as u16,
 
-            AddressingMode::Absolute => self.mem_read_u16(self.pc),
+            AddressingMode::Absolute => {
+                let ret = self.mem_read_u16(self.pc);
+                self.pc = self.pc.wrapping_add(1);
+                ret
+            },
 
             AddressingMode::ZeroPage_X => {
                 let pos = self.mem_read(self.pc);
@@ -206,11 +214,13 @@ impl CPU {
 
             AddressingMode::Absolute_X => {
                 let base = self.mem_read_u16(self.pc);
+                self.pc = self.pc.wrapping_add(1);
                 let addr = base.wrapping_add(self.x as u16);
                 addr
             }
             AddressingMode::Absolute_Y => {
                 let base = self.mem_read_u16(self.pc);
+                self.pc = self.pc.wrapping_add(1);
                 let addr = base.wrapping_add(self.y as u16);
                 addr
             }
@@ -271,10 +281,12 @@ impl CPU {
     // PHP(push processor status) stores a Byte to the stack containing the flags NV11DDIZC and decrements stack pointer
     // Note B Flag is marked as 1 for PHP
     fn php(&mut self) {
+        println!("php: Initialized- PC is {}", self.pc);
         let mut flags = self.flags.clone();
         flags.insert(CpuFlags::BREAK);
         flags.insert(CpuFlags::BREAK2);
         self.stack_push(flags.bits());
+        println!("php: Finished execution- PC is {}", self.pc);
     }
 
     fn plp(&mut self) {
@@ -379,6 +391,7 @@ impl CPU {
     }
 
     fn tsx(&mut self) {
+        println!("tsx: Initalized. Stack pointer is {}", self.sp);
         self.x = self.sp;
         self.zero_negative_flag(self.x);
     }
@@ -734,7 +747,6 @@ impl CPU {
         self.stack_push_u16(self.pc + 2 - 1);
         self.stack_push(self.flags.bits());
         self.flags.insert(CpuFlags::INTERRUPT_DISABLE);
-        // BUG Potential, unknown if this is an indirect jump or direct
         self.pc = self.mem_read_u16(0xFFFE);
         println!("brk: Set pc to {}", self.pc);
     }
