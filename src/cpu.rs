@@ -1,8 +1,8 @@
 use bitflags::bitflags;
 use std::time::Duration;
-
+mod test_fn;
+mod sb1_test;
 type Byte = u8;
-mod tests;
 
 bitflags! {
 #[repr(transparent)]

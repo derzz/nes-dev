@@ -1,47 +1,8 @@
 #[cfg(test)]
-mod cpu_test {
+mod sb1_test {
     use crate::cpu::CpuFlags;
     use crate::cpu::CPU;
-
-    const FULLFLAGS: CpuFlags = CpuFlags::from_bits_truncate(0b11111111);
-    const EMPTYFLAGS: CpuFlags = CpuFlags::from_bits_truncate(0b00000000);
-
-    fn stack_push_test(cpu: &mut CPU, instructions: Vec<u8>, check: u8) {
-        cpu.load_and_run(instructions);
-        // Setting to 4 due to brk doing a stack_push and stack_push_u16
-        assert!(
-            cpu.memory[(0x0100 + cpu.sp.wrapping_add(4) as u16) as usize] == check,
-            "pushed value is {:#b}, comparing against {:#b}",
-            cpu.memory[(0x0100 + cpu.sp.wrapping_add(4) as u16) as usize],
-            check
-        )
-    }
-
-    fn flag_removal_test(cpu: &mut CPU, instructions: Vec<u8>, check: CpuFlags) {
-        cpu.flags = FULLFLAGS;
-        // Instruction should only be checking removal of one flag
-        cpu.load(instructions);
-        cpu.pc = cpu.mem_read_u16(0xFFFC);
-        cpu.run();
-        assert!(
-            !cpu.flags.contains(check),
-            "Cpu Flags is {:#b}",
-            cpu.flags.bits()
-        );
-    }
-
-    fn flag_insert_test(cpu: &mut CPU, instructions: Vec<u8>, check: CpuFlags) {
-        cpu.flags = EMPTYFLAGS;
-        cpu.load(instructions);
-        cpu.pc = cpu.mem_read_u16(0xFFFC);
-        cpu.run();
-        assert!(
-            cpu.flags.contains(check),
-            "Cpu Flags is {:#b}",
-            cpu.flags.bits()
-        );
-    }
-
+    use crate::cpu::test_fn::*;
     // Tests LDA, a = 5
     #[test]
     fn test_0xa9_lda_immediate_load_data() {
@@ -75,14 +36,14 @@ mod cpu_test {
     #[test]
     fn test_php() {
         let mut cpu = CPU::new();
-        stack_push_test(&mut cpu, vec![0x08], 0b00110100);
+        test_fn::stack_push_test(&mut cpu, vec![0x08], 0b00110100);
     }
 
     // CLC Test
     #[test]
     fn test_clc() {
         let mut cpu = CPU::new();
-        flag_removal_test(&mut cpu, vec![0x18], CpuFlags::CARRY);
+        test_fn::flag_removal_test(&mut cpu, vec![0x18], CpuFlags::CARRY);
     }
 
     #[test]
@@ -99,7 +60,7 @@ mod cpu_test {
     #[test]
     fn test_sec() {
         let mut cpu = CPU::new();
-        flag_insert_test(&mut cpu, vec![0x38], CpuFlags::CARRY);
+        test_fn::flag_insert_test(&mut cpu, vec![0x38], CpuFlags::CARRY);
     }
 
     #[test]
@@ -107,7 +68,7 @@ mod cpu_test {
         let mut cpu = CPU::new();
         // Incremeents Y register twice and transfers from Y to A
         // Then determines if a == 0x02
-        stack_push_test(&mut cpu, vec![0xC8, 0xC8, 0x98, 0x48], 0x02);
+        test_fn::stack_push_test(&mut cpu, vec![0xC8, 0xC8, 0x98, 0x48], 0x02);
     }
 
     #[test]
@@ -115,7 +76,7 @@ mod cpu_test {
         // Interrupt disable checking is interesting as it will reenable due to BRK
         // Testing by pushing the flags with PHP and then checking that.
         let mut cpu = CPU::new();
-        cpu.flags = FULLFLAGS;
+        cpu.flags = test_fn::FULLFLAGS;
         cpu.load(vec![0x58, 0x08]);
         cpu.pc = cpu.mem_read_u16(0xFFFC);
         cpu.run();
@@ -141,7 +102,7 @@ mod cpu_test {
     #[test]
     fn test_sei() {
         let mut cpu = CPU::new();
-        flag_insert_test(&mut cpu, vec![0x78], CpuFlags::INTERRUPT_DISABLE);
+        test_fn::flag_insert_test(&mut cpu, vec![0x78], CpuFlags::INTERRUPT_DISABLE);
     }
 
     #[test]
@@ -171,7 +132,7 @@ mod cpu_test {
     #[test]
     fn test_clv() {
         let mut cpu = CPU::new();
-        flag_removal_test(&mut cpu, vec![0xB8], CpuFlags::OVERFLOW);
+        test_fn::flag_removal_test(&mut cpu, vec![0xB8], CpuFlags::OVERFLOW);
     }
 
     #[test]
@@ -184,7 +145,7 @@ mod cpu_test {
     #[test]
     fn test_cld() {
         let mut cpu = CPU::new();
-        flag_removal_test(&mut cpu, vec![0xD8], CpuFlags::DECIMAL_MODE);
+        test_fn::flag_removal_test(&mut cpu, vec![0xD8], CpuFlags::DECIMAL_MODE);
     }
 
     #[test]
@@ -197,6 +158,6 @@ mod cpu_test {
     #[test]
     fn test_sed() {
         let mut cpu = CPU::new();
-        flag_insert_test(&mut cpu, vec![0xF8], CpuFlags::DECIMAL_MODE);
+        test_fn::flag_insert_test(&mut cpu, vec![0xF8], CpuFlags::DECIMAL_MODE);
     }
 }
