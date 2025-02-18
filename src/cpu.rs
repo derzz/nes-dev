@@ -2,6 +2,8 @@ use bitflags::bitflags;
 use std::time::Duration;
 mod test_fn;
 mod sb1_test;
+mod sb2_test;
+mod op;
 type Byte = u8;
 
 bitflags! {
@@ -101,6 +103,7 @@ impl CPU {
         println!("load: Initalized");
         self.memory[0x8000..(0x8000 + program.len())].copy_from_slice(&program[..]);
         self.mem_write_u16(0xFFFC, 0x8000); // Save reference to program in 0xFFFC
+        println!("load: Finished!");
     }
 
     pub fn load_and_run(&mut self, program: Vec<u8>) {
@@ -132,13 +135,13 @@ impl CPU {
     fn mem_read(&mut self, addr: u16) -> Byte {
         println!("mem_read: addr is {}", addr);
         let ret = self.memory[addr as usize];
-        self.pc += 1;
+        self.pc = self.pc.wrapping_add(1);
         ret
     }
 
     fn mem_write(&mut self, addr: u16, data: u8) {
         let ret = self.memory[addr as usize] = data;
-        self.pc += 1;
+        self.pc = self.pc.wrapping_add(1);
         ret
     }
 
