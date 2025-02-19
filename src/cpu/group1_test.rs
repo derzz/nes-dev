@@ -107,24 +107,211 @@ mod group1_test {
             cpu.a,
             expected_val
         );
+
+        // Zero Page, X
+        cpu.load_and_reset(vec![second_half + g1_op::ZP, 0xFE]);
+        cpu.memory[0xFF] = load_mem;
+        cpu.x = 0x01;
+        cpu.a = load_a;
+        cpu.run();
+
+        assert!(
+            cpu.a == expected_val,
+            "Failed on Zero Page, X with {}. cpu.a is {:#b}, expected_val is {:#b}",
+            test_name(first_half),
+            cpu.a,
+            expected_val
+        );
+
+        // Absolyte, Y
+        cpu.load_and_reset(vec![second_half + g1_op::IMMEDIATE_Y, 0x00, 0x02]);
+        cpu.y = 0x01;
+        cpu.memory[0x0201] = load_mem;
+        cpu.a = load_a;
+        cpu.run();
+
+
+        assert!(
+            cpu.a == expected_val,
+            "Failed on Absolute, Y with {}. cpu.a is {:#b}, expected_val is {:#b}",
+            test_name(first_half),
+            cpu.a,
+            expected_val
+        );
+
+        // Absolyte, X
+        cpu.load_and_reset(vec![second_half + g1_op::ABSOLUTE_X, 0x00, 0x02]);
+        cpu.x = 0x01;
+        cpu.memory[0x0201] = load_mem;
+        cpu.a = load_a;
+        cpu.run();
+
+
+        assert!(
+            cpu.a == expected_val,
+            "Failed on Absolute, X with {}. cpu.a is {:#b}, expected_val is {:#b}",
+            test_name(first_half),
+            cpu.a,
+            expected_val
+        );
+
     }
 
     #[test]
     fn test_ora() {
         let mut cpu = CPU::new();
+        // Testing on alternating bits
+        let fh = g1_op::FIRST_ORA;
+        let sh = g1_op::SECOND_ORA;
         gen_test(
             &mut cpu,
-            g1_op::FIRST_ORA,
-            g1_op::SECOND_ORA,
+            fh,
+            sh,
             0b10101010,
             0b01010101,
             0xFF,
         );
+
+        assert!(cpu.flags.contains(CpuFlags::NEGATIVE) && !cpu.flags.contains(CpuFlags::ZERO));
+
+        // Test ora if both are 0b1111_1111
+        gen_test(
+            &mut cpu,
+            fh,
+            sh,
+            0xFF,
+            0xFF,
+            0xFF
+        );
+        assert!(cpu.flags.contains(CpuFlags::NEGATIVE) && !cpu.flags.contains(CpuFlags::ZERO));
+
+        // Testing ora if both are 0
+        gen_test(
+            &mut cpu,
+            fh,
+            sh,
+            0,
+            0,
+            0
+        );
+        assert!(!cpu.flags.contains(CpuFlags::NEGATIVE) && cpu.flags.contains(CpuFlags::ZERO));
+
+        // Testing for no flags
+        gen_test(
+            &mut cpu,
+            fh,
+            sh,
+            0b01110000,
+            0b01110000,
+            0b01110000
+        );
+
+        assert!(!cpu.flags.contains(CpuFlags::NEGATIVE) && !cpu.flags.contains(CpuFlags::ZERO));
+
     }
 
     #[test]
-    fn test_and() {}
+    fn test_and() {
+        // Similar tests to ORA
+        let mut cpu = CPU::new();
+        let fh = g1_op::FIRST_AND;
+        let sh = g1_op::SECOND_AND;
+        gen_test(
+            &mut cpu,
+            fh,
+            sh,
+            0b10101010,
+            0b01010101,
+            0x00,
+        );
+
+        assert!(!cpu.flags.contains(CpuFlags::NEGATIVE) && cpu.flags.contains(CpuFlags::ZERO));
+
+        // Test and if both are 0b1111_1111
+        gen_test(
+            &mut cpu,
+            fh,
+            sh,
+            0xFF,
+            0xFF,
+            0xFF
+        );
+        assert!(cpu.flags.contains(CpuFlags::NEGATIVE) && !cpu.flags.contains(CpuFlags::ZERO));
+
+        // Testing and if both are 0
+        gen_test(
+            &mut cpu,
+            fh,
+            sh,
+            0,
+            0,
+            0
+        );
+        assert!(!cpu.flags.contains(CpuFlags::NEGATIVE) && cpu.flags.contains(CpuFlags::ZERO));
+
+        // Testing for no flags
+        gen_test(
+            &mut cpu,
+            fh,
+            sh,
+            0b01110000,
+            0b01001100,
+            0b0100_0000
+        );
+        assert!(!cpu.flags.contains(CpuFlags::NEGATIVE) && !cpu.flags.contains(CpuFlags::ZERO));
+
+    }
 
     #[test]
-    fn test_eor() {}
+    fn test_eor() {
+        let mut cpu = CPU::new();
+        let fh = g1_op::FIRST_EOR;
+        let sh = g1_op::SECOND_EOR;
+
+
+        gen_test(
+            &mut cpu,
+            fh,
+            sh,
+            0b10101010,
+            0b01010101,
+            0xFF,
+        );
+
+        assert!(cpu.flags.contains(CpuFlags::NEGATIVE) && !cpu.flags.contains(CpuFlags::ZERO));
+
+        // Test and if both are 0b1111_1111
+        gen_test(
+            &mut cpu,
+            fh,
+            sh,
+            0xFF,
+            0xFF,
+            0x00
+        );
+        assert!(!cpu.flags.contains(CpuFlags::NEGATIVE) && cpu.flags.contains(CpuFlags::ZERO));
+
+        // Testing and if both are 0
+        gen_test(
+            &mut cpu,
+            fh,
+            sh,
+            0,
+            0,
+            0
+        );
+        assert!(!cpu.flags.contains(CpuFlags::NEGATIVE) && cpu.flags.contains(CpuFlags::ZERO));
+
+        gen_test(
+            &mut cpu,
+            fh,
+            sh,
+            0b1001_1001,
+            0b0110_1001,
+            0xF0
+        );
+        assert!(cpu.flags.contains(CpuFlags::NEGATIVE) && !cpu.flags.contains(CpuFlags::ZERO));
+    }
+
+    
 }

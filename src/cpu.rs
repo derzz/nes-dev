@@ -255,6 +255,7 @@ impl CPU {
             }
 
             AddressingMode::Absolute_X => {
+                println!("get_operand_address: In Absolute_X");
                 let base = self.mem_read_u16(self.pc);
                 self.pc = self.pc.wrapping_add(1);
                 let addr = base.wrapping_add(self.x as u16);
@@ -475,7 +476,7 @@ impl CPU {
             4 => AddressingMode::Indirect_Y,
             5 => AddressingMode::ZeroPage_X,
             6 => AddressingMode::Absolute_Y,
-            7 => AddressingMode::Absolute_Y,
+            7 => AddressingMode::Absolute_X,
             _ => {
                 unimplemented!("Unknown addressing mode for group 1 bbb {}", bbb);
             }
