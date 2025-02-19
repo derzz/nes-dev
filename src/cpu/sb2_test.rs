@@ -75,6 +75,11 @@ mod sb2_test {
     fn test_nop() {
         let mut cpu = CPU::new();
         cpu.load_and_run(vec![op::NOP]);
-        assert!(cpu.x == 0 && cpu.y == 0 && cpu.a == 0 && cpu.flags == CpuFlags::from_bits_truncate(0b00100100));
+        assert!(
+            cpu.x == 0
+                && cpu.y == 0
+                && cpu.a == 0
+                && cpu.flags == CpuFlags::from_bits_truncate(0b00100100)
+        );
     }
 }

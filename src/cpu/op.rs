@@ -1,4 +1,5 @@
 // Opcodes used in testing, unneeded in cpu.rs due to cpu.rs following specific addressing properties
+// https://llx.com/Neil/a2/opcodes.html#ins816
 #[cfg(test)]
 pub mod op {
     // SBI1
@@ -26,4 +27,33 @@ pub mod op {
     pub const TSX: u8 = 0xba;
     pub const DEX: u8 = 0xca;
     pub const NOP: u8 = 0xea;
+}
+
+// Opcodes used for multi bit group 1 instructions
+// Add the addressing mode and the opcode to get full opcode
+pub mod g1_op {
+    // LSB used for addressing mode
+    pub const INDIRECT: u8 = 0x01; // Used with (zp, X) and (zp), Y
+    pub const ZP: u8 = 0x05; // Used with zp, zp, X
+    pub const IMMEDIATE_Y: u8 = 0x09; // Used with # and abs, Y
+    pub const ABSOLUTE_X: u8 = 0x0D; // Used with abs and abs,X
+
+    // First half will be instructions for (zp, X); zp; #; abs
+    // Second half is instructions for (zp), Y; zp,X; abs,Y; abs,X
+    pub const FIRST_ORA: u8 = 0x00;
+    pub const SECOND_ORA: u8 = 0x10;
+    pub const FIRST_AND: u8 = 0x20;
+    pub const SECOND_AND: u8 = 0x30;
+    pub const FIRST_EOR: u8 = 0x40;
+    pub const SECOND_EOR: u8 = 0x50;
+    pub const FIRST_ADC: u8 = 0x60;
+    pub const SECOND_ADC: u8 = 0x70;
+    pub const FIRST_STA: u8 = 0x80;
+    pub const SECOND_STA: u8 = 0x90;
+    pub const FIRST_LDA: u8 = 0xA0;
+    pub const SECOND_LDA: u8 = 0xB0;
+    pub const FIRST_CMP: u8 = 0xC0;
+    pub const SECOND_CMP: u8 = 0xD0;
+    pub const FIRST_SBC: u8 = 0xE0;
+    pub const SECOND_SBC: u8 = 0xF0;
 }

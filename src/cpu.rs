@@ -1,9 +1,14 @@
+use super::print_title;
 use bitflags::bitflags;
 use std::time::Duration;
+use std::fmt;
+
+mod group1_test;
 mod op;
 mod sb1_test;
 mod sb2_test;
 mod test_fn;
+
 type Byte = u8;
 
 bitflags! {
@@ -30,7 +35,7 @@ pub struct CPU {
     pub flags: CpuFlags,
     // [0x8000... 0xFFFF] is reserved for program ROM
     pub memory: [u8; 0xFFFF],
-    pub clock_time: Duration, 
+    pub clock_time: Duration,
 }
 
 #[derive(Debug)]
@@ -47,6 +52,24 @@ pub enum AddressingMode {
     Indirect_Y,
     NoneAddressing,
     Accumulator, // Retrieves the vlaue of the accumulator
+}
+
+impl fmt::Display for AddressingMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AddressingMode::Immediate => write!(f, "Immediate"),
+            AddressingMode::ZeroPage => write!(f, "ZeroPage"),
+            AddressingMode::ZeroPage_X => write!(f, "ZeroPage_X"),
+            AddressingMode::ZeroPage_Y => write!(f, "ZeroPage_Y"),
+            AddressingMode::Absolute => write!(f, "Absolute"),
+            AddressingMode::Absolute_X => write!(f, "Absolute_X"),
+            AddressingMode::Absolute_Y => write!(f, "Absolute_Y"),
+            AddressingMode::Indirect_X => write!(f, "Indirect_X"),
+            AddressingMode::Indirect_Y => write!(f, "Indirect_Y"),
+            AddressingMode::NoneAddressing => write!(f, "NoneAddressing"),
+            AddressingMode::Accumulator => write!(f, "Accumulator"),
+        }
+    }
 }
 
 const STACK_RESET: u8 = 0xFD;
@@ -87,6 +110,13 @@ impl CPU {
         self.mem_write(pos + 1, hi);
     }
 
+    // Resets RAM from $0000 to $07FF
+    fn ram_reset(&mut self){
+        for i in 0x0.. 0x07FF{
+            self.memory[i] = 0;
+        }
+    }
+
     // Restores registers and initalizes PC to the 2 byte value at 0xFFFC
     pub fn reset(&mut self) {
         println!("reset: Initalized");
@@ -96,6 +126,7 @@ impl CPU {
         self.flags = CpuFlags::from_bits_truncate(0b00100100);
         self.sp = STACK_RESET;
         self.pc = self.mem_read_u16(0xFFFC);
+        self.ram_reset();
     }
 
     pub fn load(&mut self, program: Vec<u8>) {
@@ -103,6 +134,12 @@ impl CPU {
         self.memory[0x8000..(0x8000 + program.len())].copy_from_slice(&program[..]);
         self.mem_write_u16(0xFFFC, 0x8000); // Save reference to program in 0xFFFC
         println!("load: Finished!");
+    }
+
+    // This function is meant for testing, where the test can insert their own values afterwards
+    pub fn load_and_reset(&mut self, program: Vec<u8>) {
+        self.load(program);
+        self.reset();
     }
 
     pub fn load_and_run(&mut self, program: Vec<u8>) {
@@ -163,6 +200,7 @@ impl CPU {
             let aaa = op >> 5;
             let bbb = (op >> 2) & 0x7;
             let cc = op & 0x3; // Used for identification of group 1, 2, and 3
+            println!("run: aaa is {:03b}, bbb is {:03b}, cc is {:02b}", aaa, bbb, cc);
             if lownibble == 0x8 {
                 self.sb_one(highnibble);
                 self.pc = self.pc.wrapping_add(1);
@@ -183,7 +221,11 @@ impl CPU {
                 unimplemented!("Unknown opcode {}", op)
             }
         }
-        println!("===================== END OF CURRENT EXECUTION ===================== ")
+        // CLeaning program ROM
+        for i in 0x8000..=0xFFFE {
+            self.memory[i] = 0;
+        }
+        print_title!("End of current execution");
     }
 
     fn get_operand_address(&mut self, mode: &AddressingMode) -> u16 {
@@ -199,7 +241,7 @@ impl CPU {
                 let ret = self.mem_read_u16(self.pc);
                 self.pc = self.pc.wrapping_add(1);
                 ret
-            },
+            }
 
             AddressingMode::ZeroPage_X => {
                 let pos = self.mem_read(self.pc);
@@ -228,6 +270,7 @@ impl CPU {
             // (c0, X)
             // Looks at the address at LSB = c0 + X and MSB = c0 + X + 1 => Address LSB + MSB
             AddressingMode::Indirect_X => {
+                println!("get_operand_address: In Indirect_X");
                 let base = self.mem_read(self.pc);
 
                 let ptr: u8 = (base as u8).wrapping_add(self.x);
@@ -429,7 +472,7 @@ impl CPU {
             1 => AddressingMode::ZeroPage,
             2 => AddressingMode::Immediate,
             3 => AddressingMode::Absolute,
-            4 => AddressingMode::ZeroPage_Y,
+            4 => AddressingMode::Indirect_Y,
             5 => AddressingMode::ZeroPage_X,
             6 => AddressingMode::Absolute_Y,
             7 => AddressingMode::Absolute_Y,
@@ -441,8 +484,11 @@ impl CPU {
 
     // Takes in the address location
     fn ora(&mut self, addr: u16) {
-        self.a |= self.mem_read(addr);
+        let cmp = self.mem_read(addr);
+        println!("ora: a: {:#b} and cmp: {:3b}", self.a, cmp);
+        self.a |= cmp;
         self.zero_negative_flag(self.a);
+        println!("ora: Finished!")
     }
 
     fn and(&mut self, addr: u16) {
@@ -528,6 +574,7 @@ impl CPU {
         // Group 1
         println!("group_one: Initalized");
         let mode = self.group_one_bbb(bbb);
+        println!("group_one: Selected mode {}, bbb is {:3b}", mode, bbb);
         let addr = self.get_operand_address(&mode); // Memory location of the value to extract
         match aaa {
             0 => self.ora(addr),

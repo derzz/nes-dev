@@ -22,17 +22,6 @@ mod sb1_test {
         assert!(cpu.flags.bits() & 0b0000_0010 == 0b10);
     }
 
-    // LDA accumulator
-    #[test]
-    fn test_lda_from_memory() {
-        let mut cpu = CPU::new();
-        cpu.mem_write(0x10, 0x55);
-
-        cpu.load_and_run(vec![0xa5, 0x10, 0x00]);
-
-        assert_eq!(cpu.a, 0x55);
-    }
-
     // SB1 Testing
     #[test]
     fn test_php() {
