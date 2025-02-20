@@ -31,6 +31,7 @@ pub mod op {
 
 // Opcodes used for multi bit group 1 instructions
 // Add the addressing mode and the opcode to get full opcode
+#[cfg(test)]
 pub mod g1_op {
     // LSB used for addressing mode
     pub const INDIRECT: u8 = 0x01; // Used with (zp, X) and (zp), Y

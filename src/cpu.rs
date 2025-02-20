@@ -1,7 +1,7 @@
 use super::print_title;
 use bitflags::bitflags;
-use std::time::Duration;
 use std::fmt;
+use std::time::Duration;
 
 mod group1_test;
 mod op;
@@ -111,8 +111,8 @@ impl CPU {
     }
 
     // Resets RAM from $0000 to $07FF
-    fn ram_reset(&mut self){
-        for i in 0x0.. 0x07FF{
+    fn ram_reset(&mut self) {
+        for i in 0x0..0x07FF {
             self.memory[i] = 0;
         }
     }
@@ -200,7 +200,10 @@ impl CPU {
             let aaa = op >> 5;
             let bbb = (op >> 2) & 0x7;
             let cc = op & 0x3; // Used for identification of group 1, 2, and 3
-            println!("run: aaa is {:03b}, bbb is {:03b}, cc is {:02b}", aaa, bbb, cc);
+            println!(
+                "run: aaa is {:03b}, bbb is {:03b}, cc is {:02b}",
+                aaa, bbb, cc
+            );
             if lownibble == 0x8 {
                 self.sb_one(highnibble);
                 self.pc = self.pc.wrapping_add(1);

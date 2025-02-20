@@ -22,7 +22,7 @@ mod group1_test {
 
     // This will test the expected value of address a with addressing modes
     // This does not tests flags- all the expected values are the same so flags can be tested afterwards
-    // NOT TO BE USED WITH CMP
+    // NOT TO BE USED WITH CMP or STA
     fn gen_test(
         cpu: &mut CPU,
         first_half: u8,
@@ -59,21 +59,22 @@ mod group1_test {
             cpu.a,
             expected_val
         );
+        if test_name(first_half) != "STA" {
+            // Immediate testing
+            print_title!("Immediate Test");
+            cpu.load_and_reset(vec![first_half + g1_op::IMMEDIATE_Y, load_mem]);
 
-        // Immediate testing
-        print_title!("Immediate Test");
-        cpu.load_and_reset(vec![first_half + g1_op::IMMEDIATE_Y, load_mem]);
-
-        cpu.memory[0xFF] = load_mem;
-        cpu.a = load_a;
-        cpu.run();
-        assert!(
-            cpu.a == expected_val,
-            "Failed on Immediate test with {}. cpu.a is {:#b}, expected_val is {:#b}",
-            test_name(first_half),
-            cpu.a,
-            expected_val
-        );
+            cpu.memory[0xFF] = load_mem;
+            cpu.a = load_a;
+            cpu.run();
+            assert!(
+                cpu.a == expected_val,
+                "Failed on Immediate test with {}. cpu.a is {:#b}, expected_val is {:#b}",
+                test_name(first_half),
+                cpu.a,
+                expected_val
+            );
+        }
 
         // Absolute testing
         // Note 0xFE is first due to little endian
@@ -130,7 +131,6 @@ mod group1_test {
         cpu.a = load_a;
         cpu.run();
 
-
         assert!(
             cpu.a == expected_val,
             "Failed on Absolute, Y with {}. cpu.a is {:#b}, expected_val is {:#b}",
@@ -146,7 +146,6 @@ mod group1_test {
         cpu.a = load_a;
         cpu.run();
 
-
         assert!(
             cpu.a == expected_val,
             "Failed on Absolute, X with {}. cpu.a is {:#b}, expected_val is {:#b}",
@@ -154,7 +153,6 @@ mod group1_test {
             cpu.a,
             expected_val
         );
-
     }
 
     #[test]
@@ -163,51 +161,22 @@ mod group1_test {
         // Testing on alternating bits
         let fh = g1_op::FIRST_ORA;
         let sh = g1_op::SECOND_ORA;
-        gen_test(
-            &mut cpu,
-            fh,
-            sh,
-            0b10101010,
-            0b01010101,
-            0xFF,
-        );
+        gen_test(&mut cpu, fh, sh, 0b10101010, 0b01010101, 0xFF);
 
         assert!(cpu.flags.contains(CpuFlags::NEGATIVE) && !cpu.flags.contains(CpuFlags::ZERO));
 
         // Test ora if both are 0b1111_1111
-        gen_test(
-            &mut cpu,
-            fh,
-            sh,
-            0xFF,
-            0xFF,
-            0xFF
-        );
+        gen_test(&mut cpu, fh, sh, 0xFF, 0xFF, 0xFF);
         assert!(cpu.flags.contains(CpuFlags::NEGATIVE) && !cpu.flags.contains(CpuFlags::ZERO));
 
         // Testing ora if both are 0
-        gen_test(
-            &mut cpu,
-            fh,
-            sh,
-            0,
-            0,
-            0
-        );
+        gen_test(&mut cpu, fh, sh, 0, 0, 0);
         assert!(!cpu.flags.contains(CpuFlags::NEGATIVE) && cpu.flags.contains(CpuFlags::ZERO));
 
         // Testing for no flags
-        gen_test(
-            &mut cpu,
-            fh,
-            sh,
-            0b01110000,
-            0b01110000,
-            0b01110000
-        );
+        gen_test(&mut cpu, fh, sh, 0b01110000, 0b01110000, 0b01110000);
 
         assert!(!cpu.flags.contains(CpuFlags::NEGATIVE) && !cpu.flags.contains(CpuFlags::ZERO));
-
     }
 
     #[test]
@@ -216,50 +185,21 @@ mod group1_test {
         let mut cpu = CPU::new();
         let fh = g1_op::FIRST_AND;
         let sh = g1_op::SECOND_AND;
-        gen_test(
-            &mut cpu,
-            fh,
-            sh,
-            0b10101010,
-            0b01010101,
-            0x00,
-        );
+        gen_test(&mut cpu, fh, sh, 0b10101010, 0b01010101, 0x00);
 
         assert!(!cpu.flags.contains(CpuFlags::NEGATIVE) && cpu.flags.contains(CpuFlags::ZERO));
 
         // Test and if both are 0b1111_1111
-        gen_test(
-            &mut cpu,
-            fh,
-            sh,
-            0xFF,
-            0xFF,
-            0xFF
-        );
+        gen_test(&mut cpu, fh, sh, 0xFF, 0xFF, 0xFF);
         assert!(cpu.flags.contains(CpuFlags::NEGATIVE) && !cpu.flags.contains(CpuFlags::ZERO));
 
         // Testing and if both are 0
-        gen_test(
-            &mut cpu,
-            fh,
-            sh,
-            0,
-            0,
-            0
-        );
+        gen_test(&mut cpu, fh, sh, 0, 0, 0);
         assert!(!cpu.flags.contains(CpuFlags::NEGATIVE) && cpu.flags.contains(CpuFlags::ZERO));
 
         // Testing for no flags
-        gen_test(
-            &mut cpu,
-            fh,
-            sh,
-            0b01110000,
-            0b01001100,
-            0b0100_0000
-        );
+        gen_test(&mut cpu, fh, sh, 0b01110000, 0b01001100, 0b0100_0000);
         assert!(!cpu.flags.contains(CpuFlags::NEGATIVE) && !cpu.flags.contains(CpuFlags::ZERO));
-
     }
 
     #[test]
@@ -268,50 +208,75 @@ mod group1_test {
         let fh = g1_op::FIRST_EOR;
         let sh = g1_op::SECOND_EOR;
 
-
-        gen_test(
-            &mut cpu,
-            fh,
-            sh,
-            0b10101010,
-            0b01010101,
-            0xFF,
-        );
+        gen_test(&mut cpu, fh, sh, 0b10101010, 0b01010101, 0xFF);
 
         assert!(cpu.flags.contains(CpuFlags::NEGATIVE) && !cpu.flags.contains(CpuFlags::ZERO));
 
         // Test and if both are 0b1111_1111
-        gen_test(
-            &mut cpu,
-            fh,
-            sh,
-            0xFF,
-            0xFF,
-            0x00
-        );
+        gen_test(&mut cpu, fh, sh, 0xFF, 0xFF, 0x00);
         assert!(!cpu.flags.contains(CpuFlags::NEGATIVE) && cpu.flags.contains(CpuFlags::ZERO));
 
         // Testing and if both are 0
-        gen_test(
-            &mut cpu,
-            fh,
-            sh,
-            0,
-            0,
-            0
-        );
+        gen_test(&mut cpu, fh, sh, 0, 0, 0);
         assert!(!cpu.flags.contains(CpuFlags::NEGATIVE) && cpu.flags.contains(CpuFlags::ZERO));
 
-        gen_test(
-            &mut cpu,
-            fh,
-            sh,
-            0b1001_1001,
-            0b0110_1001,
-            0xF0
-        );
+        gen_test(&mut cpu, fh, sh, 0b1001_1001, 0b0110_1001, 0xF0);
         assert!(cpu.flags.contains(CpuFlags::NEGATIVE) && !cpu.flags.contains(CpuFlags::ZERO));
     }
 
-    
+    fn test_adc_flag_check(carry: bool, zero: bool, overflow: bool, negative: bool){
+
+    }
+
+    #[test]
+    fn test_adc() {
+        let mut cpu = CPU::new();
+        let fh = g1_op::FIRST_ADC;
+        let sh = g1_op::SECOND_ADC;
+
+        // TODO We will simulate carry flags by subtracting 1 from given values and adding them back with the carry flag
+        // Set ending to 2 just to do one loop
+        for i in 1..2{
+            // 2 Positive
+            gen_test(&mut cpu, fh, sh, 0x01, 0x02, 0x03);
+
+            // 2 Negative
+            gen_test(&mut cpu, fh, sh, 0xff, 0xff, 0xfe);
+
+            // Zero
+            gen_test(&mut cpu, fh, sh, 0xff, 0x01, 0x00);
+
+            // Negative
+            gen_test(&mut cpu, fh, sh, 0b1100_0000, 0b0000_0001, 0b1100_0001);
+
+            // Zero(All)
+            gen_test(&mut cpu, fh, sh, 0, 0, 0);
+
+            // Carry with Zero sum
+            gen_test(&mut cpu, fh, sh, 0xff, 0x01, 0x00);
+
+            // Overflow
+            gen_test(&mut cpu, fh, sh, 0x7f, 0x02, 0x81);
+
+            // Underflow
+            gen_test(&mut cpu, fh, sh, 0x80, 0x81, 0x01);
+        }
+    }
+
+    #[test]
+    fn test_sta() {
+        let mut cpu = CPU::new();
+        let fh = g1_op::FIRST_STA;
+        let sh = g1_op::SECOND_STA;
+
+    }
+
+    #[test]
+    fn test_lda() {}
+
+    #[test]
+    fn test_cmp() {}
+
+    #[test]
+    fn test_sbc() {}
 }
