@@ -4,6 +4,7 @@ use std::fmt;
 use std::time::Duration;
 
 mod group1_test;
+mod group3_test;
 mod op;
 mod sb1_test;
 mod sb2_test;
@@ -194,7 +195,7 @@ impl CPU {
             let highnibble = op >> 4;
             let lownibble = op & 0x0F;
             println!(
-                "run: Highnibble is {} and lownibble is {}",
+                "run: Highnibble is {:#x} and lownibble is {:#x}",
                 highnibble, lownibble
             );
             let aaa = op >> 5;
@@ -204,15 +205,25 @@ impl CPU {
                 "run: aaa is {:03b}, bbb is {:03b}, cc is {:02b}",
                 aaa, bbb, cc
             );
-            if lownibble == 0x8 {
+            // Top is hard coding remaining instructions
+            if op == 0x0{
+                self.brk();
+            }
+            else if op == 0x20{
+                self.jsr();
+            }
+            else if op == 0x40{
+                self.rti();
+            }
+            else if op == 0x60{
+                self.rts();
+            }
+            else if lownibble == 0x8 {
                 self.sb_one(highnibble);
-                self.pc = self.pc.wrapping_add(1);
             } else if lownibble == 0xA && highnibble >= 0x8 {
                 self.sb_two(highnibble);
-                self.pc = self.pc.wrapping_add(1);
             } else if cc == 0x01 {
                 self.group_one(aaa, bbb, cc);
-                self.pc = self.pc.wrapping_add(1);
             } else if cc == 0x10 {
                 self.group_two(aaa, bbb, cc);
             } else if cc == 0x00 {
@@ -221,8 +232,16 @@ impl CPU {
             } else if cc == 0x11 {
                 unimplemented!("cc = 11 is not implemented. This is fulfilled by the 65816 cpu.")
             } else {
-                unimplemented!("Unknown opcode {}", op)
+                unimplemented!("Unknown opcode {:#x}", op)
             }
+            // Second IRQ check, as self.pc addition occurs after pc is set to 0xFFFF
+            if self.pc == 0xFFFF && self.flags.contains(CpuFlags::INTERRUPT_DISABLE) {
+                println!("run: IRQ detected, most likely from a brk. Stopping execution...");
+                break;
+            }
+            // NOTE: Before this runs, PC must be at the instruction before the next command
+            // BUG: This may affect branching and needs to be adjusted
+            self.pc = self.pc.wrapping_add(1);
         }
         // CLeaning program ROM
         for i in 0x8000..=0xFFFE {
@@ -232,6 +251,7 @@ impl CPU {
     }
 
     fn get_operand_address(&mut self, mode: &AddressingMode) -> u16 {
+        println!("get_operand_address: Initalized");
         self.pc = self.pc.wrapping_add(1);
         match mode {
             AddressingMode::Immediate => self.pc,
@@ -562,7 +582,10 @@ impl CPU {
 
     // Used for CPY, CMP, CPX
     fn compare(&mut self, addr: u16, val: u8) {
-        let res = (val.wrapping_sub(self.mem_read(addr))) as i8;
+        // BUG need to figure out val and mem[addr]
+        let addr_val= self.mem_read(addr);
+        println!("compare: val is {}, addr_val is {}", val, addr_val);
+        let res = val.wrapping_sub(addr_val) as i8;
 
         if res >= 0 {
             self.flags.insert(CpuFlags::CARRY);
@@ -777,6 +800,8 @@ impl CPU {
     }
 
     fn cpx(&mut self, addr: u16) {
+        println!("cpx: Initalized");
+        println!("x is {}", self.x);
         self.compare(addr, self.x);
     }
 
@@ -825,8 +850,9 @@ impl CPU {
     }
 
     fn group_three(&mut self, aaa: u8, bbb: u8, _cc: u8) {
+        println!("group_three: Initalized");
         if bbb == 0b010 {
-            unimplemented!("Group Three bbb does not support accumulator! {}", bbb)
+            unimplemented!("group_three: Group Three bbb does not support accumulator! {}", bbb)
         } else if bbb == 0b100 {
             // Checking for branches
             match aaa {
@@ -847,15 +873,6 @@ impl CPU {
                 // BEQ
                 0b111 => self.if_contain_flag_branch(CpuFlags::ZERO),
                 _ => unimplemented!("Unknown branch aaa code {}", aaa),
-            }
-        } else if bbb == 0b000 {
-            // Remaining instructions
-            match aaa {
-                0b000 => self.brk(),
-                0b001 => self.jsr(),
-                0b010 => self.rti(),
-                0b100 => self.rts(),
-                _ => unimplemented!("Unknown aaa code with {}00000", aaa),
             }
         } else {
             // Group Three Instructions

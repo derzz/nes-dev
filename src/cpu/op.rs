@@ -58,3 +58,13 @@ pub mod g1_op {
     pub const FIRST_SBC: u8 = 0xE0;
     pub const SECOND_SBC: u8 = 0xF0;
 }
+
+#[cfg(test)]
+pub mod g3_op{
+    pub const IMMEDIATE:u8  = 0x00;
+    pub const ZP: u8 = 0x04; // Used with zp; zp, X
+    pub const ABS: u8 = 0x0C; // Used with abs; abs, X
+
+    pub const CPY: u8 = 0xC0;
+    pub const CPX: u8 = 0xE0;
+}

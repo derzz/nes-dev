@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod group1_test {
     use crate::cpu::op::*;
-    use crate::cpu::test_fn::*;
     use crate::cpu::CpuFlags;
     use crate::cpu::CPU;
     use crate::print_title;
@@ -639,8 +638,16 @@ mod group1_test {
 
             test_adc_flag_check(&cpu, false, false, true, true, "Overflow sbc");
             // Underflow
-            gen_test(&mut cpu, fh, sh, 0x80_u8.wrapping_sub(i), set_negative(0x81), 0x01, carry);
-            
+            gen_test(
+                &mut cpu,
+                fh,
+                sh,
+                0x80_u8.wrapping_sub(i),
+                set_negative(0x81),
+                0x01,
+                carry,
+            );
+
             // Note, if carry flag is on for this, load_a becomes 7F and thus no overflow occurs!(pretty cool huh)
             test_adc_flag_check(&cpu, true, false, !carry, false, "Underflow sbc");
             // Additional tests for SBC
