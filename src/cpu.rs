@@ -506,7 +506,7 @@ impl CPU {
     }
 
     fn add_to_a(&mut self, val: u8) {
-        // val set to signed due to sbc
+        println!("add_to_a: a is {:#b}, val is {:#b}", self.a, val);
         let sum = self.a as u16
             + val as u16
             + if self.flags.contains(CpuFlags::CARRY) {
@@ -542,8 +542,8 @@ impl CPU {
     fn sbc(&mut self, addr: u16) {
         let val = self.mem_read(addr);
         // wrapping_neg calculates two's complement negation
-        // subtracts 1 to get bitwise not of the memory value
-        self.add_to_a((val as i8).wrapping_neg().wrapping_sub(1) as u8);
+        let mem = (val as i8).wrapping_neg() as u8;       println!("sbc: Old value is {:#b}, new value is {:#b}", val, mem);
+        self.add_to_a(mem);
     }
 
     fn sta(&mut self, addr: u16) {
