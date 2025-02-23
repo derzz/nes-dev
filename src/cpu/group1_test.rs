@@ -343,7 +343,21 @@ mod group1_test {
     }
 
     #[test]
-    fn test_lda() {}
+    fn test_lda() {
+        let mut cpu = CPU::new();
+        let fh = g1_op::FIRST_LDA;
+        let sh = g1_op::SECOND_LDA;
+        gen_test(&mut cpu, fh, sh, 0, 0x05, 0x05);
+        assert!(!cpu.flags.contains(CpuFlags::NEGATIVE) && !cpu.flags.contains(CpuFlags::ZERO));
+
+        // Zero Test
+        gen_test(&mut cpu, fh, sh, 0x20, 0x0, 0x0);
+        assert!(!cpu.flags.contains(CpuFlags::NEGATIVE) && cpu.flags.contains(CpuFlags::ZERO));
+
+        // Negative test
+        gen_test(&mut cpu, fh, sh, 0x20, 0xFF, 0xFF);
+        assert!(cpu.flags.contains(CpuFlags::NEGATIVE) && !cpu.flags.contains(CpuFlags::ZERO));
+    }
 
     #[test]
     fn test_cmp() {}
