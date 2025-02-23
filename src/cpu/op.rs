@@ -78,4 +78,7 @@ pub mod g3_op {
 
     pub const FIRST_LDY: u8 = 0xA0; // LDX is the exact same
     pub const SECOND_LDY: u8 = 0xB0;
+
+    pub const FIRST_STY: u8 = 0x80;
+    pub const SECOND_STY: u8 = 0x90; // Only used with zp, X
 }
