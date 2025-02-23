@@ -237,45 +237,49 @@ mod group3_test {
     fn test_stx_sty() {
         let mut cpu = CPU::new();
         let first_half = g3_op::FIRST_STY;
-        let second_half = g3_op::SECOND_STY;
-        let load_reg: u8 = 0xAB;
+        let second_half = g3_op::SECOND_STY; // Ok this is worded badly but is the MSB switched for zp, X
+        let mut second_half_zp = g3_op::ZP;
+        let mut second_half_abs = g3_op::ABS;
+        let load_reg: u8 = 0x0E;
 
-        for i in 0..2{
-        // Zero Page Testing
-        print_title!("Zero Page Test");
-        let x = i == 1;
-        cpu.load_and_reset((vec![first_half + g1_op::ZP, 0xA1]));
-        reg_loader(&mut cpu, x, load_reg);
-        cpu.run();
-        assert!(
-            cpu.memory[0xA1] == reg_output(&cpu, x),
-            "Failed on zero page test for test_sta"
-        );
+        for i in 0..2 {
+            // Zero Page Testing
+            print_title!("Zero Page Test");
+            let x = i == 1;
+            if x{
+                second_half_zp = g2_op::ZP;
+                second_half_abs = g2_op::ABS;
+            }
+            cpu.load_and_reset((vec![first_half + second_half_zp, 0xA1]));
+            reg_loader(&mut cpu, x, load_reg);
+            cpu.run();
+            assert!(
+                cpu.memory[0xA1] == reg_output(&cpu, x),
+                "Failed on zero page test for test_sta"
+            );
 
-        // Absolute testing
-        // Note 0xFE is first due to little endian
-        cpu.load_and_reset((vec![first_half + g1_op::ABSOLUTE_X, 0xFE, 0x01]));
-        reg_loader(&mut cpu, x, load_reg);
-        cpu.run();
-        assert!(
-            cpu.memory[0x01FE] == reg_output(&cpu, x),
-            "Failed on absolute test for test_sta. Cpu.a is {}, cpu.memory[0x01FE] is {}",
-            cpu.a,
-            cpu.memory[0x01FE]
-        );
+            // Absolute testing
+            // Note 0xFE is first due to little endian
+            cpu.load_and_reset((vec![first_half + second_half_abs, 0xFE, 0x01]));
+            reg_loader(&mut cpu, x, load_reg);
+            cpu.run();
+            assert!(
+                cpu.memory[0x01FE] == reg_output(&cpu, x),
+                "Failed on absolute test for test_sta. Cpu.a is {}, cpu.memory[0x01FE] is {}",
+                cpu.a,
+                cpu.memory[0x01FE]
+            );
 
-        // Zero Page, X
-        cpu.load_and_reset(vec![second_half + g1_op::ZP, 0x01]);
-        reg_loader(&mut cpu, x, load_reg);
-        cpu.run();
+            // Zero Page, X
+            cpu.load_and_reset(vec![second_half + second_half_zp, 0xA0]);
+            reg_loader(&mut cpu, x, load_reg);
+            cpu.run();
 
-        assert!(
-            cpu.a == cpu.memory[0x01 + cpu.x as usize],
-            "Failed on zero page, X for test_sta"
-        );
-    }
-
-
+            assert!(
+                reg_output(&cpu, x) == cpu.memory[0xA0 + cpu.x as usize],
+                "Failed on zero page, X for test_sta"
+            );
+        }
     }
 
     // JMP and JMP(), one is absolute, other is indirect
