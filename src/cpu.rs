@@ -558,13 +558,15 @@ impl CPU {
 
     // Used for CPY, CMP, CPX
     fn compare(&mut self, addr: u16, val: u8) {
-        let res = val - self.mem_read(addr);
+        let res = (val.wrapping_sub(self.mem_read(addr))) as i8;
 
-        if res > 0 {
+        if res >= 0 {
             self.flags.insert(CpuFlags::CARRY);
-        } else if res == 0 {
+        } 
+        if res == 0 {
             self.flags.insert(CpuFlags::ZERO);
-        } else {
+        } 
+        if res < 0 {
             // Subtraction is negative
             self.flags.insert(CpuFlags::NEGATIVE);
         }

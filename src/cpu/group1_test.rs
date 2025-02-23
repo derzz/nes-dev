@@ -359,8 +359,115 @@ mod group1_test {
         assert!(cpu.flags.contains(CpuFlags::NEGATIVE) && !cpu.flags.contains(CpuFlags::ZERO));
     }
 
+fn cmp_flag_tester(cpu: &CPU, carry: bool, zero: bool, negative: bool) {
+    if carry {
+        assert!(cpu.flags.contains(CpuFlags::CARRY), "Expected carry flag to be set");
+    } else {
+        assert!(!cpu.flags.contains(CpuFlags::CARRY), "Expected carry flag to be clear");
+    }
+
+    if zero {
+        assert!(cpu.flags.contains(CpuFlags::ZERO), "Expected zero flag to be set");
+    } else {
+        assert!(!cpu.flags.contains(CpuFlags::ZERO), "Expected zero flag to be clear");
+    }
+
+    if negative {
+        assert!(cpu.flags.contains(CpuFlags::NEGATIVE), "Expected negative flag to be set");
+    } else {
+        assert!(!cpu.flags.contains(CpuFlags::NEGATIVE), "Expected negative flag to be clear");
+    }
+}
+fn test_cmp_helper(
+    cpu: &mut CPU,
+    load_a: u8,
+    load_mem: u8,
+    carry: bool,
+    zero: bool,
+    negative: bool
+) {
+    let first_half = g1_op::FIRST_CMP;
+    let second_half = g1_op::SECOND_CMP;
+
+    // Indirect testing, two byte only!
+    cpu.load_and_reset(vec![first_half + g1_op::INDIRECT, 0xA1]);
+    cpu.x = 0xB;
+    cpu.memory[0xAC] = 0xDF; // This is the address where it goes to as 0xA1 + 0xB = 0xAC
+    cpu.memory[0xDF] = load_mem;
+    cpu.a = load_a;
+    cpu.run();
+    cmp_flag_tester(cpu, carry, zero, negative);
+
+    // Zero Page Testing
+    print_title!("Zero Page Test");
+    cpu.load_and_reset(vec![first_half + g1_op::ZP, 0xFF]);
+    cpu.memory[0xFF] = load_mem;
+    cpu.a = load_a;
+    cpu.run();
+    cmp_flag_tester(cpu, carry, zero, negative);
+
+    // Immediate testing
+    print_title!("Immediate Test");
+    cpu.load_and_reset(vec![first_half + g1_op::IMMEDIATE_Y, load_mem]);
+    cpu.memory[0xFF] = load_mem;
+    cpu.a = load_a;
+    cpu.run();
+    cmp_flag_tester(cpu, carry, zero, negative);
+
+    // Absolute testing
+    // Note 0xFE is first due to little endian
+    cpu.load_and_reset(vec![first_half + g1_op::ABSOLUTE_X, 0xFE, 0x01]);
+    cpu.memory[0x01FE] = load_mem;
+    cpu.a = load_a;
+    cpu.run();
+    cmp_flag_tester(cpu, carry, zero, negative);
+
+    // Indirect Indexed: ($c0), Y
+    // Can look at four bytes
+    print_title!("Indirect Indexed Test");
+    cpu.load_and_reset(vec![second_half + g1_op::INDIRECT, 0xA1]);
+    cpu.memory[0xA1] = 0xE1; // LSB
+    cpu.memory[0xA2] = 0x05; // MSB
+    cpu.y = 0x12;
+    cpu.memory[0x05F3] = load_mem;
+    cpu.a = load_a;
+    cpu.run();
+    cmp_flag_tester(cpu, carry, zero, negative);
+
+    // Zero Page, X
+    cpu.load_and_reset(vec![second_half + g1_op::ZP, 0xFE]);
+    cpu.memory[0xFF] = load_mem;
+    cpu.x = 0x01;
+    cpu.a = load_a;
+    cpu.run();
+    cmp_flag_tester(cpu, carry, zero, negative);
+
+    // Absolute, Y
+    cpu.load_and_reset(vec![second_half + g1_op::IMMEDIATE_Y, 0x00, 0x02]);
+    cpu.y = 0x01;
+    cpu.memory[0x0201] = load_mem;
+    cpu.a = load_a;
+    cpu.run();
+    cmp_flag_tester(cpu, carry, zero, negative);
+
+    // Absolute, X
+    cpu.load_and_reset(vec![second_half + g1_op::ABSOLUTE_X, 0x00, 0x02]);
+    cpu.x = 0x01;
+    cpu.memory[0x0201] = load_mem;
+    cpu.a = load_a;
+    cpu.run();
+    cmp_flag_tester(cpu, carry, zero, negative);
+}
+
     #[test]
-    fn test_cmp() {}
+    fn test_cmp() {
+        // Call modified gen_test but instead of testing if cpu.a value, test the flags
+        // Test cases for CMP instruction
+    let mut cpu = CPU::new();
+    test_cmp_helper(&mut cpu, 0x10, 0x10, true, true, false); // A == M
+    test_cmp_helper(&mut cpu, 0x20, 0x10, true, false, false); // A > M
+    test_cmp_helper(&mut cpu, 0x10, 0x20, false, false, true); // A < M
+    }
 
     fn set_negative(val: u8) -> u8 {
         let ret = (val as i8).wrapping_neg() as u8;
