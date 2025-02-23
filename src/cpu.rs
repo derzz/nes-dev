@@ -206,33 +206,29 @@ impl CPU {
                 aaa, bbb, cc
             );
             // Top is hard coding remaining instructions
-            if op == 0x0{
+            if op == 0x0 {
                 self.brk();
-            }
-            else if op == 0x20{
+            } else if op == 0x20 {
                 self.jsr();
-            }
-            else if op == 0x40{
+            } else if op == 0x40 {
                 self.rti();
-            }
-            else if op == 0x60{
+            } else if op == 0x60 {
                 self.rts();
-            }
-            else if lownibble == 0x8 {
+            } else if lownibble == 0x8 {
                 self.sb_one(highnibble);
             } else if lownibble == 0xA && highnibble >= 0x8 {
                 self.sb_two(highnibble);
-            } else if cc == 0x01 {
+            } else if cc == 0b01 {
                 self.group_one(aaa, bbb, cc);
-            } else if cc == 0x10 {
+            } else if cc == 0b10 {
                 self.group_two(aaa, bbb, cc);
-            } else if cc == 0x00 {
+            } else if cc == 0b00 {
                 // Conditionals are also included in here
                 self.group_three(aaa, bbb, cc);
-            } else if cc == 0x11 {
+            } else if cc == 0b11 {
                 unimplemented!("cc = 11 is not implemented. This is fulfilled by the 65816 cpu.")
             } else {
-                unimplemented!("Unknown opcode {:#x}", op)
+                unimplemented!("run: Unknown opcode {:#x}", op)
             }
             // Second IRQ check, as self.pc addition occurs after pc is set to 0xFFFF
             if self.pc == 0xFFFF && self.flags.contains(CpuFlags::INTERRUPT_DISABLE) {
@@ -583,7 +579,7 @@ impl CPU {
     // Used for CPY, CMP, CPX
     fn compare(&mut self, addr: u16, val: u8) {
         // BUG need to figure out val and mem[addr]
-        let addr_val= self.mem_read(addr);
+        let addr_val = self.mem_read(addr);
         println!("compare: val is {}, addr_val is {}", val, addr_val);
         let res = val.wrapping_sub(addr_val) as i8;
 
@@ -627,10 +623,10 @@ impl CPU {
         match bbb {
             0 => AddressingMode::Immediate,
             1 => AddressingMode::ZeroPage,
-            2 => AddressingMode::Accumulator,
-            3 => AddressingMode::Absolute,
-            4 => AddressingMode::ZeroPage_X,
-            5 => AddressingMode::Absolute_X,
+            0b10 => AddressingMode::Accumulator,
+            0b11 => AddressingMode::Absolute,
+            0b101 => AddressingMode::ZeroPage_X,
+            0b111 => AddressingMode::Absolute_X,
             _ => {
                 unimplemented!("Unknown addressing mode for group 1 {}", bbb);
             }
@@ -852,7 +848,10 @@ impl CPU {
     fn group_three(&mut self, aaa: u8, bbb: u8, _cc: u8) {
         println!("group_three: Initalized");
         if bbb == 0b010 {
-            unimplemented!("group_three: Group Three bbb does not support accumulator! {}", bbb)
+            unimplemented!(
+                "group_three: Group Three bbb does not support accumulator! {}",
+                bbb
+            )
         } else if bbb == 0b100 {
             // Checking for branches
             match aaa {

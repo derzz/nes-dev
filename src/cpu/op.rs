@@ -60,11 +60,22 @@ pub mod g1_op {
 }
 
 #[cfg(test)]
-pub mod g3_op{
-    pub const IMMEDIATE:u8  = 0x00;
+pub mod g2_op {
+    pub const IMMEDIATE: u8 = 0x02;
+    pub const ZP: u8 = 0x06; // Also used with Zp, X
+    pub const A: u8 = 0x0A;
+    pub const ABS: u8 = 0x0E; // Allso used with abs, X; abs, Y
+}
+
+#[cfg(test)]
+pub mod g3_op {
+    pub const IMMEDIATE: u8 = 0x00;
     pub const ZP: u8 = 0x04; // Used with zp; zp, X
     pub const ABS: u8 = 0x0C; // Used with abs; abs, X
 
     pub const CPY: u8 = 0xC0;
     pub const CPX: u8 = 0xE0;
+
+    pub const FIRST_LDY: u8 = 0xA0; // LDX is the exact same
+    pub const SECOND_LDY: u8 = 0xB0;
 }
