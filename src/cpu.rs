@@ -760,12 +760,14 @@ impl CPU {
 
     fn bit(&mut self, addr: u16) {
         let val = self.mem_read(addr);
-        if self.a & val == 0 {
+        if (self.a & val) == 0 {
             self.flags.insert(CpuFlags::ZERO);
         } else {
             self.flags.remove(CpuFlags::ZERO);
         }
+        println!("bit: val is {:#b}", val);
         let overflow = (val >> 6) & 0b01;
+        println!("bit: overflow {:#b}", overflow);
         let negative = val >> 7;
         if overflow == 1 {
             self.flags.insert(CpuFlags::OVERFLOW);

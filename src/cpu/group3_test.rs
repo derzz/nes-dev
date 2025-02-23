@@ -320,4 +320,85 @@ mod group3_test {
     // Check BIT for zp and abs
     // Just need to check zero, overflow, and negative flags
     // Similar to CMP flag checking procedure
+
+    fn bit_flag_tester(cpu: &CPU, overflow: bool, zero: bool, negative: bool){
+        if overflow {
+            assert!(
+                cpu.flags.contains(CpuFlags::OVERFLOW),
+                "Expected overflow flag to be set"
+            );
+        } else {
+            assert!(
+                !cpu.flags.contains(CpuFlags::OVERFLOW),
+                "Expected overflow flag to be clear"
+            );
+        }
+
+        if zero {
+            assert!(
+                cpu.flags.contains(CpuFlags::ZERO),
+                "Expected zero flag to be set"
+            );
+        } else {
+            assert!(
+                !cpu.flags.contains(CpuFlags::ZERO),
+                "Expected zero flag to be clear"
+            );
+        }
+
+        if negative {
+            assert!(
+                cpu.flags.contains(CpuFlags::NEGATIVE),
+                "Expected negative flag to be set"
+            );
+        } else {
+            assert!(
+                !cpu.flags.contains(CpuFlags::NEGATIVE),
+                "Expected negative flag to be clear"
+            );
+        }
+    }
+
+    fn test_bit_helper(
+        cpu: &mut CPU,
+        load_a: u8,
+        load_mem: u8,
+        zero: bool,
+        overflow:bool,
+        negative: bool,
+    ) {
+        let first_half = g3_op::BIT;
+
+        // Zero Page Testing
+        print_title!("Zero Page Test");
+        cpu.load_and_reset(vec![first_half + g3_op::ZP, 0xFF]);
+        cpu.memory[0xFF] = load_mem;
+        cpu.a = load_a;
+        cpu.run();
+        bit_flag_tester(cpu, overflow, zero, negative);
+
+
+        // Absolute testing
+        // Note 0xFE is first due to little endian
+        print_title!("Absolute test");
+        cpu.load_and_reset(vec![first_half + g3_op::ABS, 0xFE, 0x01]);
+        cpu.memory[0x01FE] = load_mem;
+        cpu.a = load_a;
+        cpu.run();
+        bit_flag_tester(cpu, overflow, zero, negative);
+    }
+
+    #[test]
+    fn test_bit() {
+        // Call modified gen_test but instead of testing if cpu.a value, test the flags
+        // Test cases for BIT instruction
+        let mut cpu = CPU::new();
+        // Zero Test
+        test_bit_helper(&mut cpu, 0b11111111, 0b00000000, true, false, false);
+        // Overflow Test
+        test_bit_helper(&mut cpu, 0xFF, 0b0100_0000, false, true, false);
+        // Negative Test
+        test_bit_helper(&mut cpu, 0xFF, 0b1000_0000, false, false, true)
+        
+    }
 }

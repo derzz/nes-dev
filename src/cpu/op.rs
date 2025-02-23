@@ -84,4 +84,6 @@ pub mod g3_op {
 
     pub const JMP: u8 = 0x4C;
     pub const JMP_REL: u8 = 0x6C;
+
+    pub const BIT: u8 = 0x20;
 }
