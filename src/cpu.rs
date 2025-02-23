@@ -542,7 +542,8 @@ impl CPU {
     fn sbc(&mut self, addr: u16) {
         let val = self.mem_read(addr);
         // wrapping_neg calculates two's complement negation
-        let mem = (val as i8).wrapping_neg() as u8;       println!("sbc: Old value is {:#b}, new value is {:#b}", val, mem);
+        let mem = (val as i8).wrapping_neg() as u8;
+        println!("sbc: Old value is {:#b}, new value is {:#b}", val, mem);
         self.add_to_a(mem);
     }
 
@@ -562,10 +563,10 @@ impl CPU {
 
         if res >= 0 {
             self.flags.insert(CpuFlags::CARRY);
-        } 
+        }
         if res == 0 {
             self.flags.insert(CpuFlags::ZERO);
-        } 
+        }
         if res < 0 {
             // Subtraction is negative
             self.flags.insert(CpuFlags::NEGATIVE);
