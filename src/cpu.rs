@@ -522,11 +522,14 @@ impl CPU {
         }
 
         let result = sum as u8; // Truncates as now carry flag is on
+        println!("result: {:#b}, a: {:#b}, val: {:#b}", result, self.a, val);
 
-        if (result ^ self.a) & (result ^ val) & 0x80 != 0 {
+        if ((result ^ self.a) & (result ^ val) & 0x80) != 0 {
             // Signed overflow(or underflow) occured
+            println!("add_to_a: overflow assigned!");
             self.flags.insert(CpuFlags::OVERFLOW);
         } else {
+            println!("add_to_a: overflow removed!");
             self.flags.remove(CpuFlags::OVERFLOW);
         }
 

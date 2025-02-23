@@ -23,14 +23,13 @@ mod group1_test {
     // This will test the expected value of address a with addressing modes
     // This does not tests flags- all the expected values are the same so flags can be tested afterwards
     // NOT TO BE USED WITH CMP or STA
-    fn gen_test_flag(cpu: &mut CPU, carry: bool){
+    fn gen_test_flag(cpu: &mut CPU, carry: bool) {
         if carry {
             cpu.flags.insert(CpuFlags::CARRY);
         } else {
             cpu.flags.remove(CpuFlags::CARRY);
         }
     }
-
 
     fn gen_test(
         cpu: &mut CPU,
@@ -41,7 +40,6 @@ mod group1_test {
         expected_val: u8,
         carry: bool,
     ) {
-
         // Indirect testing, two byte only!
         cpu.load_and_reset(vec![first_half + g1_op::INDIRECT, 0xA1]);
         gen_test_flag(cpu, carry);
@@ -241,106 +239,121 @@ mod group1_test {
         assert!(cpu.flags.contains(CpuFlags::NEGATIVE) && !cpu.flags.contains(CpuFlags::ZERO));
     }
 
-fn test_adc_flag_check(cpu: &CPU, carry: bool, zero: bool, overflow: bool, negative: bool, name: &str) {
-    if carry {
-        assert!(
-            cpu.flags.contains(CpuFlags::CARRY),
-            "{}: Expected carry flag to be set, but it was not",
-            name
-        );
-    } else {
-        assert!(
-            !cpu.flags.contains(CpuFlags::CARRY),
-            "{}: Expected carry flag to be clear, but it was set",
-            name
-        );
+    fn test_adc_flag_check(
+        cpu: &CPU,
+        carry: bool,
+        zero: bool,
+        overflow: bool,
+        negative: bool,
+        name: &str,
+    ) {
+        if carry {
+            assert!(
+                cpu.flags.contains(CpuFlags::CARRY),
+                "{}: Expected carry flag to be set, but it was not",
+                name
+            );
+        } else {
+            assert!(
+                !cpu.flags.contains(CpuFlags::CARRY),
+                "{}: Expected carry flag to be clear, but it was set",
+                name
+            );
+        }
+
+        if zero {
+            assert!(
+                cpu.flags.contains(CpuFlags::ZERO),
+                "{}: Expected zero flag to be set, but it was not",
+                name
+            );
+        } else {
+            assert!(
+                !cpu.flags.contains(CpuFlags::ZERO),
+                "{}: Expected zero flag to be clear, but it was set",
+                name
+            );
+        }
+
+        if overflow {
+            assert!(
+                cpu.flags.contains(CpuFlags::OVERFLOW),
+                "{}: Expected overflow flag to be set, but it was not",
+                name
+            );
+        } else {
+            assert!(
+                !cpu.flags.contains(CpuFlags::OVERFLOW),
+                "{}: Expected overflow flag to be clear, but it was set",
+                name
+            );
+        }
+
+        if negative {
+            assert!(
+                cpu.flags.contains(CpuFlags::NEGATIVE),
+                "{}: Expected negative flag to be set, but it was not",
+                name
+            );
+        } else {
+            assert!(
+                !cpu.flags.contains(CpuFlags::NEGATIVE),
+                "{}: Expected negative flag to be clear, but it was set",
+                name
+            );
+        }
     }
 
-    if zero {
-        assert!(
-            cpu.flags.contains(CpuFlags::ZERO),
-            "{}: Expected zero flag to be set, but it was not",
-            name
-        );
-    } else {
-        assert!(
-            !cpu.flags.contains(CpuFlags::ZERO),
-            "{}: Expected zero flag to be clear, but it was set",
-            name
-        );
+    #[test]
+    fn test_adc() {
+        let mut cpu = CPU::new();
+        let fh = g1_op::FIRST_ADC;
+        let sh = g1_op::SECOND_ADC;
+
+        for i in 0..2 {
+            let carry = if i == 0 { false } else { true };
+
+            // 2 Positive
+            gen_test(&mut cpu, fh, sh, 0x01, 0x02_u8.wrapping_sub(i), 0x03, carry);
+            test_adc_flag_check(&cpu, false, false, false, false, "2 Positive adc");
+
+            // 2 Negative
+            gen_test(&mut cpu, fh, sh, 0xff, 0xff_u8.wrapping_sub(i), 0xfe, carry);
+            test_adc_flag_check(&cpu, true, false, false, true, "2 Negative adc");
+
+            // Zero
+            gen_test(&mut cpu, fh, sh, 0xff, 0x01_u8.wrapping_sub(i), 0x00, carry);
+            test_adc_flag_check(&cpu, true, true, false, false, "Zero adc");
+
+            // Negative
+            gen_test(
+                &mut cpu,
+                fh,
+                sh,
+                0b1100_0000,
+                0b0000_0001_u8.wrapping_sub(i),
+                0b1100_0001,
+                carry,
+            );
+            test_adc_flag_check(&cpu, false, false, false, true, "Negative adc");
+
+            // Zero(All)
+            gen_test(&mut cpu, fh, sh, 0, 0_u8.wrapping_sub(i), 0, carry);
+            test_adc_flag_check(&cpu, carry, true, false, false, "Zero(All) adc");
+
+            // Carry with Zero sum
+            gen_test(&mut cpu, fh, sh, 0xff, 0x01_u8.wrapping_sub(i), 0x00, carry);
+            test_adc_flag_check(&cpu, true, true, false, false, "Carry with Zero sum adc");
+
+            // Overflow
+            gen_test(&mut cpu, fh, sh, 0x7f, 0x02_u8.wrapping_sub(i), 0x81, carry);
+            test_adc_flag_check(&cpu, false, false, true, true, "Overflow adc");
+
+            // Underflow
+            gen_test(&mut cpu, fh, sh, 0x80, 0x81_u8.wrapping_sub(i), 0x01, carry);
+            test_adc_flag_check(&cpu, true, false, true, false, "Underflow adc");
+        }
     }
-
-    if overflow {
-        assert!(
-            cpu.flags.contains(CpuFlags::OVERFLOW),
-            "{}: Expected overflow flag to be set, but it was not",
-            name
-        );
-    } else {
-        assert!(
-            !cpu.flags.contains(CpuFlags::OVERFLOW),
-            "{}: Expected overflow flag to be clear, but it was set",
-            name
-        );
-    }
-
-    if negative {
-        assert!(
-            cpu.flags.contains(CpuFlags::NEGATIVE),
-            "{}: Expected negative flag to be set, but it was not",
-            name
-        );
-    } else {
-        assert!(
-            !cpu.flags.contains(CpuFlags::NEGATIVE),
-            "{}: Expected negative flag to be clear, but it was set",
-            name
-        );
-    }
-}
-
-#[test]
-fn test_adc() {
-    let mut cpu = CPU::new();
-    let fh = g1_op::FIRST_ADC;
-    let sh = g1_op::SECOND_ADC;
-
-    for i in 0..2 {
-        let carry = if i == 0 { false } else { true };
-
-        // 2 Positive
-        gen_test(&mut cpu, fh, sh, 0x01, 0x02_u8.wrapping_sub(i), 0x03, carry);
-        test_adc_flag_check(&cpu, false, false, false, false, "2 Positive");
-
-        // 2 Negative
-        gen_test(&mut cpu, fh, sh, 0xff, 0xff_u8.wrapping_sub(i), 0xfe, carry);
-        test_adc_flag_check(&cpu, true, false, false, true, "2 Negative");
-
-        // Zero
-        gen_test(&mut cpu, fh, sh, 0xff, 0x01_u8.wrapping_sub(i), 0x00, carry);
-        test_adc_flag_check(&cpu, true, true, false, false, "Zero");
-
-        // Negative
-        gen_test(&mut cpu, fh, sh, 0b1100_0000, 0b0000_0001_u8.wrapping_sub(i), 0b1100_0001, carry);
-        test_adc_flag_check(&cpu, false, false, false, true, "Negative");
-
-        // Zero(All)
-        gen_test(&mut cpu, fh, sh, 0, 0_u8.wrapping_sub(i), 0, carry);
-        test_adc_flag_check(&cpu, carry, true, false, false, "Zero(All)");
-
-        // Carry with Zero sum
-        gen_test(&mut cpu, fh, sh, 0xff, 0x01_u8.wrapping_sub(i), 0x00, carry);
-        test_adc_flag_check(&cpu, true, true, false, false, "Carry with Zero sum");
-
-        // Overflow
-        gen_test(&mut cpu, fh, sh, 0x7f, 0x02_u8.wrapping_sub(i), 0x81, carry);
-        test_adc_flag_check(&cpu, false, false, true, true, "Overflow");
-
-        // Underflow
-        gen_test(&mut cpu, fh, sh, 0x80, 0x81_u8.wrapping_sub(i), 0x01, carry);
-        test_adc_flag_check(&cpu, true, false, true, false, "Underflow");
-    }
-}
 
     #[test]
     fn test_sta() {
@@ -594,12 +607,14 @@ fn test_adc() {
             // 2 Positive
             gen_test(&mut cpu, fh, sh, 0x01 - i, set_negative(0x02), 0x03, carry);
 
+            test_adc_flag_check(&cpu, false, false, false, false, "2 Positive sbc");
             // 2 Negative
             gen_test(&mut cpu, fh, sh, 0xff - i, set_negative(0xff), 0xfe, carry);
-
+            test_adc_flag_check(&cpu, true, false, false, true, "2 Negative sbc");
             // Zero
             gen_test(&mut cpu, fh, sh, 0xff - i, 0xff, 0x00, carry);
 
+            test_adc_flag_check(&cpu, true, true, false, false, "Zero sbc");
             // Negative
             gen_test(
                 &mut cpu,
@@ -611,30 +626,53 @@ fn test_adc() {
                 carry,
             );
 
+            test_adc_flag_check(&cpu, false, false, false, true, "Negative sbc");
             // Zero(All)
             gen_test(&mut cpu, fh, sh, 0_u8.wrapping_sub(i), 0, 0, carry);
-
+            test_adc_flag_check(&cpu, carry, true, false, false, "Zero(All) sbc");
             // Carry with Zero sum
             gen_test(&mut cpu, fh, sh, 0xff - i, set_negative(0x01), 0x00, carry);
 
+            test_adc_flag_check(&cpu, true, true, false, false, "Carry with Zero sum sbc");
             // Overflow
             gen_test(&mut cpu, fh, sh, 0x7f - i, set_negative(0x02), 0x81, carry);
 
+            test_adc_flag_check(&cpu, false, false, true, true, "Overflow sbc");
             // Underflow
-            gen_test(&mut cpu, fh, sh, 0x80 - i, set_negative(0x81), 0x01, carry);
-
+            gen_test(&mut cpu, fh, sh, 0x80_u8.wrapping_sub(i), set_negative(0x81), 0x01, carry);
+            
+            // Note, if carry flag is on for this, load_a becomes 7F and thus no overflow occurs!(pretty cool huh)
+            test_adc_flag_check(&cpu, true, false, !carry, false, "Underflow sbc");
             // Additional tests for SBC
             // Positive result with carry
-            gen_test(&mut cpu, fh, sh, 0x50 - i, set_negative(0x30), 0x80, carry);
+            gen_test(&mut cpu, fh, sh, 0xFF - i, set_negative(0x02), 0x01, carry);
 
+            test_adc_flag_check(&cpu, true, false, false, false, "Positve result with carry");
             // Negative result with carry
-            gen_test(&mut cpu, fh, sh, 0x30 - i, set_negative(0x50), 0x80, carry);
+            gen_test(&mut cpu, fh, sh, 0x01 - i, 0x02, 0xFF, carry);
 
+            test_adc_flag_check(
+                &cpu,
+                false,
+                false,
+                false,
+                true,
+                "Negative result with carry",
+            );
             // Positive result without carry
             gen_test(&mut cpu, fh, sh, 0x50 - i, set_negative(0x20), 0x70, carry);
 
+            test_adc_flag_check(
+                &cpu,
+                false,
+                false,
+                false,
+                false,
+                "Positive result without carry",
+            );
             // Negative result without carry
-            gen_test(&mut cpu, fh, sh, 0x20 - i, set_negative(0x50), 0x70, carry);
+            gen_test(&mut cpu, fh, sh, 0xFF - i, 1, 0xFE, carry);
+            test_adc_flag_check(&cpu, true, false, false, true, "Negative result");
         }
     }
 }
