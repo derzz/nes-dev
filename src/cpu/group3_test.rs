@@ -246,7 +246,7 @@ mod group3_test {
             // Zero Page Testing
             print_title!("Zero Page Test");
             let x = i == 1;
-            if x{
+            if x {
                 second_half_zp = g2_op::ZP;
                 second_half_abs = g2_op::ABS;
             }
@@ -284,6 +284,38 @@ mod group3_test {
 
     // JMP and JMP(), one is absolute, other is indirect
     // Just test for pc
+    #[test]
+    fn test_jump() {
+        let mut cpu = CPU::new();
+        cpu.load_and_reset(vec![g3_op::JMP, 0x04, 0x06]);
+        cpu.memory[0x0604] = 0xE8; // INX instruction
+        cpu.run();
+        assert!(cpu.x == 1, "Jump failed, cpu.x value is {}", cpu.x);
+
+        // JMP() test
+        print_title!("JMP() Test");
+        cpu.memory[0x0600..0x0605].fill(0);
+        cpu.load_and_reset(vec![g3_op::JMP_REL, 0x04, 0x06]);
+        cpu.memory[0x0604] = 0xAA;
+        cpu.memory[0x0605] = 0x01;
+        // Should jump to 0x01AA
+        cpu.memory[0x01AA] = 0xE8;
+        cpu.memory[0x01AB] = 0x00; // BRK
+        cpu.run();
+        assert!(cpu.x == 1, "Relative jump failed, cpu.x value is {}", cpu.x);
+        // JMP test with page bug
+        print_title!("JMP() with page bug");
+        cpu.load_and_reset(vec![g3_op::JMP_REL, 0xFF, 0x06]);
+        cpu.memory[0x06FF] = 0xAA;
+        cpu.memory[0x0600] = 0x01;
+        cpu.memory[0x01AA] = 0xE8;
+        cpu.run();
+        assert!(
+            cpu.x == 1,
+            "Relative jump failed with page bug, cpu.x value is {}",
+            cpu.x
+        );
+    }
 
     // Check BIT for zp and abs
     // Just need to check zero, overflow, and negative flags

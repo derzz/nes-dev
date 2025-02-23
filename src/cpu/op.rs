@@ -81,4 +81,7 @@ pub mod g3_op {
 
     pub const FIRST_STY: u8 = 0x80;
     pub const SECOND_STY: u8 = 0x90; // Only used with zp, X
+
+    pub const JMP: u8 = 0x4C;
+    pub const JMP_REL: u8 = 0x6C;
 }

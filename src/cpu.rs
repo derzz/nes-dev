@@ -49,6 +49,7 @@ pub enum AddressingMode {
     Absolute,
     Absolute_X,
     Absolute_Y,
+    Indirect, // Used for jmp()
     Indirect_X,
     Indirect_Y,
     NoneAddressing,
@@ -69,6 +70,7 @@ impl fmt::Display for AddressingMode {
             AddressingMode::Indirect_Y => write!(f, "Indirect_Y"),
             AddressingMode::NoneAddressing => write!(f, "NoneAddressing"),
             AddressingMode::Accumulator => write!(f, "Accumulator"),
+            AddressingMode::Indirect => write!(f, "Indirect"),
         }
     }
 }
@@ -170,7 +172,7 @@ impl CPU {
     }
 
     fn mem_read(&mut self, addr: u16) -> Byte {
-        println!("mem_read: addr is {}", addr);
+        println!("mem_read: addr is {:#x}", addr);
         let ret = self.memory[addr as usize];
         // self.pc = self.pc.wrapping_add(1);
         ret
@@ -185,7 +187,7 @@ impl CPU {
     pub fn run(&mut self) {
         println!("run: Initalized");
         loop {
-            println!("run: Reading values, starting with pc {}", self.pc);
+            println!("run: Reading values, starting with pc {:#x}", self.pc);
             if self.pc == 0xFFFF && self.flags.contains(CpuFlags::INTERRUPT_DISABLE) {
                 println!("run: IRQ detected, most likely from a brk. Stopping execution...");
                 break;
@@ -257,6 +259,7 @@ impl CPU {
             AddressingMode::ZeroPage => self.mem_read(self.pc) as u16,
 
             AddressingMode::Absolute => {
+                println!("get_operand_address: in absolute mode");
                 let ret = self.mem_read_u16(self.pc);
                 self.pc = self.pc.wrapping_add(1);
                 ret
@@ -287,6 +290,19 @@ impl CPU {
                 addr
             }
 
+            AddressingMode::Indirect => {
+                println!("get_operand_address: In Indirect");
+                let base = self.mem_read_u16(self.pc);
+                self.pc = self.pc.wrapping_add(1);
+                println!("get_operand_address: Indirect:: base is {:#x}", base);
+                let lo = self.mem_read(base as u16);
+                let read = if base & 0xFF == 0xFF {base & 0xFF00} else{(base as u16).wrapping_add(1) as u16};
+                let hi = self.mem_read(read);
+                let deref_base = (hi as u16) << 8 | (lo as u16);
+
+                deref_base
+            }
+
             // (c0, X)
             // Looks at the address at LSB = c0 + X and MSB = c0 + X + 1 => Address LSB + MSB
             AddressingMode::Indirect_X => {
@@ -304,7 +320,7 @@ impl CPU {
                 let base = self.mem_read(self.pc);
 
                 let lo = self.mem_read(base as u16);
-                let hi = self.mem_read((base as u8).wrapping_add(1) as u16);
+                let hi = self.mem_read((base as u16).wrapping_add(1) as u16);
                 let deref_base = (hi as u16) << 8 | (lo as u16);
                 let deref = deref_base.wrapping_add(self.y as u16);
                 deref
@@ -765,21 +781,12 @@ impl CPU {
     }
 
     fn jmp(&mut self, addr: u16) {
-        let val: u16;
-        // Implementing Cpu Bug
-        if addr & 0x0011 == 0xFF {
-            let lo = self.mem_read(addr) as u16;
-            let hi = self.mem_read(addr & 0x1100) as u16; // Allows addressing ending in $FF to not cross the page
-            val = (hi << 8) | (lo as u16)
-        } else {
-            // No bug
-            val = self.mem_read_u16(addr);
-        }
-        self.pc = val;
-    }
-
-    fn jmp_abs(&mut self) {
-        self.pc = self.mem_read_u16(self.pc);
+        // address already has address to jump to
+        println!("jmp: Initalized with address {:#x}", addr);
+        let val = addr;
+        println!("jmp: val is {:#x}", val);
+        // Need to subtract pc by one as it will be added at the end of run
+        self.pc = val.wrapping_sub(1);
     }
 
     fn sty(&mut self, addr: u16) {
@@ -875,12 +882,22 @@ impl CPU {
             }
         } else {
             // Group Three Instructions
-            let mode = self.group_two_three_bbb(bbb);
+            println!("group_three: Actually in group 3!");
+            let mut mode = self.group_two_three_bbb(bbb);
+            // Hardcoding jmp rel
+            if aaa == 0b011 && bbb == 0b011 {
+                // This is jump relative, replace the mode
+                println!("group_three: This is jmp indirect!");
+                mode = AddressingMode::Indirect;
+            }
             let addr = self.get_operand_address(&mode);
+            println!(
+                "group_three: Deciding what instruction with aaa: {:#b} and address {}",
+                aaa, addr
+            );
             match aaa {
                 1 => self.bit(addr),
-                2 => self.jmp(addr),
-                3 => self.jmp_abs(),
+                0b010 | 0b011 => self.jmp(addr),
                 4 => self.sty(addr),
                 5 => self.ldy(addr),
                 6 => self.cpy(addr),
