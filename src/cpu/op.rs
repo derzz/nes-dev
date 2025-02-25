@@ -65,6 +65,12 @@ pub mod g2_op {
     pub const ZP: u8 = 0x06; // Also used with Zp, X
     pub const A: u8 = 0x0A;
     pub const ABS: u8 = 0x0E; // Allso used with abs, X; abs, Y
+
+    pub const FIRST_DEC: u8 = 0xC0;
+    pub const SECOND_DEC: u8 = 0xD0;
+
+    pub const FIRST_INC: u8 = 0xE0;
+    pub const SECOND_INC: u8 = 0xF0;
 }
 
 #[cfg(test)]

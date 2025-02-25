@@ -4,6 +4,7 @@ use std::fmt;
 use std::time::Duration;
 
 mod group1_test;
+mod group2_test;
 mod group3_test;
 mod op;
 mod sb1_test;
@@ -296,7 +297,11 @@ impl CPU {
                 self.pc = self.pc.wrapping_add(1);
                 println!("get_operand_address: Indirect:: base is {:#x}", base);
                 let lo = self.mem_read(base as u16);
-                let read = if base & 0xFF == 0xFF {base & 0xFF00} else{(base as u16).wrapping_add(1) as u16};
+                let read = if base & 0xFF == 0xFF {
+                    base & 0xFF00
+                } else {
+                    (base as u16).wrapping_add(1) as u16
+                };
                 let hi = self.mem_read(read);
                 let deref_base = (hi as u16) << 8 | (lo as u16);
 

@@ -321,7 +321,7 @@ mod group3_test {
     // Just need to check zero, overflow, and negative flags
     // Similar to CMP flag checking procedure
 
-    fn bit_flag_tester(cpu: &CPU, overflow: bool, zero: bool, negative: bool){
+    fn bit_flag_tester(cpu: &CPU, overflow: bool, zero: bool, negative: bool) {
         if overflow {
             assert!(
                 cpu.flags.contains(CpuFlags::OVERFLOW),
@@ -364,7 +364,7 @@ mod group3_test {
         load_a: u8,
         load_mem: u8,
         zero: bool,
-        overflow:bool,
+        overflow: bool,
         negative: bool,
     ) {
         let first_half = g3_op::BIT;
@@ -376,7 +376,6 @@ mod group3_test {
         cpu.a = load_a;
         cpu.run();
         bit_flag_tester(cpu, overflow, zero, negative);
-
 
         // Absolute testing
         // Note 0xFE is first due to little endian
@@ -399,6 +398,5 @@ mod group3_test {
         test_bit_helper(&mut cpu, 0xFF, 0b0100_0000, false, true, false);
         // Negative Test
         test_bit_helper(&mut cpu, 0xFF, 0b1000_0000, false, false, true)
-        
     }
 }
