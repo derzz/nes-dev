@@ -10,7 +10,6 @@ mod group2_test {
     use crate::cpu::op::*;
     use crate::cpu::CpuFlags;
     use crate::cpu::CPU;
-    use crate::print_title;
 
     fn g2_flag_test(cpu: &CPU, carry: bool, zero: bool, negative: bool) {
         if carry {

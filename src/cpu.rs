@@ -3,6 +3,7 @@ use bitflags::bitflags;
 use std::fmt;
 use std::time::Duration;
 
+mod branch_test;
 mod group1_test;
 mod group2_test;
 mod group3_test;
@@ -87,7 +88,7 @@ impl CPU {
             x: 0,
             y: 0,
             sp: STACK_RESET,
-            flags: CpuFlags::from_bits_truncate(0b00100100),
+            flags: CpuFlags::from_bits_truncate(0b0010_0100),
             memory: [0; 0xFFFF],
             clock_time: Duration::from_millis(1), // Example value
         }
@@ -239,7 +240,6 @@ impl CPU {
                 break;
             }
             // NOTE: Before this runs, PC must be at the instruction before the next command
-            // BUG: This may affect branching and needs to be adjusted
             self.pc = self.pc.wrapping_add(1);
         }
         // CLeaning program ROM
@@ -849,8 +849,15 @@ impl CPU {
 
     // This code will read the next item in the pc and set the pc to jump there with + 1 to go to the next instruction
     fn branch(&mut self) {
+        println!(
+            "branch: Initalized, starting to branch from pc {:#x}!",
+            self.pc
+        );
         let jump = self.mem_read(self.pc) as i8;
-        self.pc = self.pc.wrapping_add(1).wrapping_add(jump as u16);
+        println!("branch: jump is {:x}", jump);
+        // NOTE We do not need to add 2 as at then end of every run cycle will add 1, the other 1 is added since the pc is on the address instead of the instruction
+        self.pc = self.pc.wrapping_add(jump as u16);
+        println!("Finished branch, pc is now on {:#x}", self.pc);
     }
 
     fn if_contain_flag_branch(&mut self, flag: CpuFlags) {
@@ -860,7 +867,7 @@ impl CPU {
     }
 
     fn if_clear_flag_branch(&mut self, flag: CpuFlags) {
-        if self.flags.contains(flag) {
+        if !self.flags.contains(flag) {
             self.branch();
         }
     }
@@ -899,6 +906,8 @@ impl CPU {
                 bbb
             )
         } else if bbb == 0b100 {
+            // Add pc by 1 to go to reading address
+            self.pc = self.pc.wrapping_add(1);
             // Checking for branches
             match aaa {
                 // BPL

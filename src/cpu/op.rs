@@ -102,3 +102,15 @@ pub mod g3_op {
 
     pub const BIT: u8 = 0x20;
 }
+
+#[cfg(test)]
+pub mod branch_op {
+    pub const BPL: u8 = 0x10; // Branch on Plus (N=0)
+    pub const BMI: u8 = 0x30; // Branch on Minus (N=1)
+    pub const BVC: u8 = 0x50; // Branch on Overflow Clear (V=0)
+    pub const BVS: u8 = 0x70; // Branch on Overflow Set (V=1)
+    pub const BCC: u8 = 0x90; // Branch on Carry Clear (C=0)
+    pub const BCS: u8 = 0xB0; // Branch on Carry Set (C=1)
+    pub const BNE: u8 = 0xD0; // Branch on Not Equal (Z=0)
+    pub const BEQ: u8 = 0xF0; // Branch on Equal (Z=1)
+}
