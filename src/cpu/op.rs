@@ -71,6 +71,15 @@ pub mod g2_op {
 
     pub const FIRST_INC: u8 = 0xE0;
     pub const SECOND_INC: u8 = 0xF0;
+
+    pub const FIRST_ASL: u8 = 0x0;
+    pub const SECOND_ASL: u8 = 0x10;
+
+    pub const FIRST_ROL: u8 = 0x20;
+    pub const SECOND_ROL: u8 = 0x30;
+
+    pub const FIRST_LSR: u8 = 0x40;
+    pub const SECOND_LSR: u8 = 0x50;
 }
 
 #[cfg(test)]

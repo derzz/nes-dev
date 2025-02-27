@@ -255,7 +255,9 @@ impl CPU {
         match mode {
             AddressingMode::Immediate => self.pc,
 
-            AddressingMode::Accumulator => self.a as u16,
+            AddressingMode::Accumulator => unimplemented!(
+                "get_operand_address: Accumulator addressing are not supported from this function"
+            ),
 
             AddressingMode::ZeroPage => self.mem_read(self.pc) as u16,
 
@@ -654,24 +656,33 @@ impl CPU {
         }
     }
 
-    fn asl(&mut self, addr: u16) {
+    fn asl(&mut self, addr: u16, accum: bool) {
         // Set carry to be bit 7
-        let val = self.mem_read(addr);
+        let val = if !accum { self.mem_read(addr) } else { self.a };
+        println!("asl: val is {:#b}", val);
         let carry_bit = val >> 7;
+        println!("asl: Carry bit is {:#b}", carry_bit);
         if carry_bit == 1 {
             self.flags.insert(CpuFlags::CARRY);
         } else {
             self.flags.remove(CpuFlags::CARRY);
         }
-
-        let new_val = val << 1;
-
-        self.mem_write(addr, new_val);
+        let new_val: u8;
+        if !accum {
+            println!("asl: Shifting {:#b}!", val);
+            new_val = val << 1;
+            self.mem_write(addr, new_val);
+        } else {
+            new_val = self.a << 1;
+            println!("asl: Modifying accumulator, old value is {:#b}", self.a);
+            self.a = new_val;
+            println!("asl: accumulator new value is {:#b}", self.a);
+        }
         self.zero_negative_flag(new_val);
     }
 
-    fn rol(&mut self, addr: u16) {
-        let val = self.mem_read(addr);
+    fn rol(&mut self, addr: u16, accum: bool) {
+        let val = if !accum { self.mem_read(addr) } else { self.a };
         let carry_in = if self.flags.contains(CpuFlags::CARRY) {
             1
         } else {
@@ -684,28 +695,39 @@ impl CPU {
         } else {
             self.flags.remove(CpuFlags::CARRY);
         }
-
-        let new_val = (val << 1) | carry_in;
-        self.mem_write(addr, new_val);
+        let new_val: u8;
+        if !accum {
+            new_val = (val << 1) | carry_in;
+            self.mem_write(addr, new_val);
+        } else {
+            new_val = (self.a << 1) | carry_in;
+            self.a = new_val;
+        }
         self.zero_negative_flag(new_val);
     }
 
-    fn lsr(&mut self, addr: u16) {
+    fn lsr(&mut self, addr: u16, accum: bool) {
         // Set carry to be bit 0
-        let val = self.mem_read(addr);
-        let carry_bit = val & 0b0000001;
+        let val = if !accum { self.mem_read(addr) } else { self.a };
+        let carry_bit = val & 0b0000_0001;
         if carry_bit == 1 {
             self.flags.insert(CpuFlags::CARRY);
         } else {
             self.flags.remove(CpuFlags::CARRY);
         }
-
-        self.mem_write(addr, val >> 1);
-        self.zero_negative_flag(val);
+        let new_val: u8;
+        if !accum {
+            new_val = val >> 1;
+            self.mem_write(addr, new_val);
+        } else {
+            new_val = val >> 1;
+            self.a = new_val;
+        }
+        self.zero_negative_flag(new_val);
     }
 
-    fn ror(&mut self, addr: u16) {
-        let val = self.mem_read(addr);
+    fn ror(&mut self, addr: u16, accum: bool) {
+        let val = if !accum { self.mem_read(addr) } else { self.a };
         let carry_in = if self.flags.contains(CpuFlags::CARRY) {
             1
         } else {
@@ -718,9 +740,14 @@ impl CPU {
         } else {
             self.flags.remove(CpuFlags::CARRY);
         }
-
-        let new_val = (val >> 1) | (carry_in << 7);
-        self.mem_write(addr, new_val);
+        let new_val: u8;
+        if !accum {
+            new_val = (val >> 1) | (carry_in << 7);
+            self.mem_write(addr, new_val);
+        } else {
+            new_val = (self.a >> 1) | (carry_in << 7);
+            self.a = new_val;
+        }
         self.zero_negative_flag(new_val);
     }
 
@@ -749,12 +776,17 @@ impl CPU {
 
     fn group_two(&mut self, aaa: u8, bbb: u8, _cc: u8) {
         let mode = self.group_two_three_bbb(bbb);
-        let addr = self.get_operand_address(&mode);
+        let accum = matches!(mode, AddressingMode::Accumulator);
+        let addr = if !accum {
+            self.get_operand_address(&mode)
+        } else {
+            0
+        };
         match aaa {
-            0 => self.asl(addr),
-            1 => self.rol(addr),
-            2 => self.lsr(addr),
-            3 => self.ror(addr),
+            0 => self.asl(addr, accum),
+            1 => self.rol(addr, accum),
+            2 => self.lsr(addr, accum),
+            3 => self.ror(addr, accum),
             4 => self.stx(addr),
             5 => self.ldx(addr),
             6 => self.dec(addr),
