@@ -143,7 +143,7 @@ mod group3_test {
 
         // Zero Page Testing
         print_title!("Zero Page Test");
-        cpu.load_and_reset((vec![first_half + zp_end, 0xFF]));
+        cpu.load_and_reset(vec![first_half + zp_end, 0xFF]);
         cpu.memory[0xFF] = load_mem;
         reg_loader(cpu, x, load_reg);
         cpu.run();
@@ -171,7 +171,7 @@ mod group3_test {
 
         // Absolute testing
         // Note 0xFE is first due to little endian
-        cpu.load_and_reset((vec![first_half + abs_end, 0xFE, 0x01]));
+        cpu.load_and_reset(vec![first_half + abs_end, 0xFE, 0x01]);
         cpu.memory[0x01FE] = load_mem;
         reg_loader(cpu, x, load_reg);
         cpu.run();
@@ -218,7 +218,7 @@ mod group3_test {
         // Set x to be true for cpx, false for cpy
         for i in 0..2 {
             let mut cpu = CPU::new();
-            let mut x = i == 1;
+            let x = i == 1;
             gen_test(&mut cpu, x, 0, 0x05, 0x05);
             assert!(!cpu.flags.contains(CpuFlags::NEGATIVE) && !cpu.flags.contains(CpuFlags::ZERO));
 
@@ -250,7 +250,7 @@ mod group3_test {
                 second_half_zp = g2_op::ZP;
                 second_half_abs = g2_op::ABS;
             }
-            cpu.load_and_reset((vec![first_half + second_half_zp, 0xA1]));
+            cpu.load_and_reset(vec![first_half + second_half_zp, 0xA1]);
             reg_loader(&mut cpu, x, load_reg);
             cpu.run();
             assert!(
@@ -260,7 +260,7 @@ mod group3_test {
 
             // Absolute testing
             // Note 0xFE is first due to little endian
-            cpu.load_and_reset((vec![first_half + second_half_abs, 0xFE, 0x01]));
+            cpu.load_and_reset(vec![first_half + second_half_abs, 0xFE, 0x01]);
             reg_loader(&mut cpu, x, load_reg);
             cpu.run();
             assert!(

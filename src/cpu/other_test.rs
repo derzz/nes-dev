@@ -2,7 +2,6 @@
 #[cfg(test)]
 mod branch_test {
     use crate::cpu::op::*;
-    use crate::cpu::CpuFlags;
     use crate::cpu::CPU;
 
     // BRK is not tested as every other test hinges on BRK working...

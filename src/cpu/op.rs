@@ -118,6 +118,6 @@ pub mod branch_op {
 #[cfg(test)]
 pub mod other_op{
     pub const JSR:u8 = 0x20;
-    pub const RTI: u8 = 0x40;
+    // pub const RTI: u8 = 0x40;
     pub const RTS: u8 = 0x60;
 }

@@ -57,7 +57,7 @@ mod group1_test {
 
         // Zero Page Testing
         print_title!("Zero Page Test");
-        cpu.load_and_reset((vec![first_half + g1_op::ZP, 0xFF]));
+        cpu.load_and_reset(vec![first_half + g1_op::ZP, 0xFF]);
         gen_test_flag(cpu, carry);
         cpu.memory[0xFF] = load_mem;
         cpu.a = load_a;
@@ -87,7 +87,7 @@ mod group1_test {
 
         // Absolute testing
         // Note 0xFE is first due to little endian
-        cpu.load_and_reset((vec![first_half + g1_op::ABSOLUTE_X, 0xFE, 0x01]));
+        cpu.load_and_reset(vec![first_half + g1_op::ABSOLUTE_X, 0xFE, 0x01]);
         gen_test_flag(cpu, carry);
         cpu.memory[0x01FE] = load_mem;
         cpu.a = load_a;
@@ -374,7 +374,7 @@ mod group1_test {
 
         // Zero Page Testing
         print_title!("Zero Page Test");
-        cpu.load_and_reset((vec![first_half + g1_op::ZP, 0xA1]));
+        cpu.load_and_reset(vec![first_half + g1_op::ZP, 0xA1]);
         cpu.a = load_a;
         cpu.run();
         assert!(
@@ -384,7 +384,7 @@ mod group1_test {
 
         // Absolute testing
         // Note 0xFE is first due to little endian
-        cpu.load_and_reset((vec![first_half + g1_op::ABSOLUTE_X, 0xFE, 0x01]));
+        cpu.load_and_reset(vec![first_half + g1_op::ABSOLUTE_X, 0xFE, 0x01]);
         cpu.a = load_a;
         cpu.run();
         assert!(

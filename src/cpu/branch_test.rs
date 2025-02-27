@@ -25,9 +25,9 @@ mod branch_test {
 
     // Literally same as above but just testing if branch can branch negative
     fn jump_neg(cpu: &mut CPU, op: u8, clear: bool, flag: CpuFlags){
-        cpu.load_and_reset(vec![op, 0xFE, 0x00]);
-        cpu.memory[cpu.mem_read(0xFFFC).wrapping_sub(2) as usize] = op::INX;
-        cpu.memory[cpu.mem_read(0xFFFC).wrapping_sub(1) as usize] = 0x00;
+        cpu.load_and_reset(vec![op, 0xFC, 0x00]);
+        cpu.memory[0x7FFE] = op::INX;
+        cpu.memory[0x7FFF] = 0x00;
         if clear {
             println!("branch_test: Allocating flags to clear!");
             cpu.flags = CpuFlags::from_bits_truncate(0b1111_1111);
@@ -51,7 +51,7 @@ mod branch_test {
             cpu.x
         );
 
-        jump(&mut cpu, op, clear, flag);
+        jump_neg(&mut cpu, op, clear, flag);
         assert!(
             cpu.x == 1,
             "jump neg Helper_test positive failed on {:#x}, cpu.x is {}",
@@ -68,9 +68,9 @@ mod branch_test {
             cpu.x
         );
 
-        jump(&mut cpu, op, clear, flag);
+        jump_neg(&mut cpu, op, !clear, flag);
         assert!(
-            cpu.x == 1,
+            cpu.x == 0,
             "jump neg Helper_test negative failed on {:#x}, cpu.x is {}",
             op,
             cpu.x
