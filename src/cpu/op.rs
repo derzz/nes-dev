@@ -114,3 +114,10 @@ pub mod branch_op {
     pub const BNE: u8 = 0xD0; // Branch on Not Equal (Z=0)
     pub const BEQ: u8 = 0xF0; // Branch on Equal (Z=1)
 }
+
+#[cfg(test)]
+pub mod other_op{
+    pub const JSR:u8 = 0x20;
+    pub const RTI: u8 = 0x40;
+    pub const RTS: u8 = 0x60;
+}

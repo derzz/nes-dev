@@ -7,6 +7,7 @@ mod branch_test;
 mod group1_test;
 mod group2_test;
 mod group3_test;
+mod other_test;
 mod op;
 mod sb1_test;
 mod sb2_test;
@@ -875,7 +876,7 @@ impl CPU {
     fn brk(&mut self) {
         println!("brk: Initalized");
         println!("brk: pc is {}", self.pc);
-        self.stack_push_u16(self.pc + 2 - 1);
+        self.stack_push_u16(self.pc.wrapping_add(2));
         self.stack_push(self.flags.bits());
         self.flags.insert(CpuFlags::INTERRUPT_DISABLE);
         self.pc = self.mem_read_u16(0xFFFE);
@@ -884,18 +885,27 @@ impl CPU {
 
     fn jsr(&mut self) {
         // Pushes the 16 bit value after self.pc
-        self.stack_push_u16(self.pc + 2 - 1);
-        self.pc = self.mem_read_u16(self.pc);
+        // Note that self.pc is already on the memory value so we just need to push this part + 1
+        // Eg. JSR 0xAA 0xBB, we would be pushing the memory address of 0xBB
+        // When rts is called, pc will add 1 automatically so it returns from the next function
+        println!("jsr: Initalized! The instruction's address is {:#x}", self.pc);
+        self.stack_push_u16(self.pc.wrapping_add(2));
+        // Need to subtract one at the end as run() will add one automatically
+        self.pc = self.mem_read_u16(self.pc.wrapping_add(1)).wrapping_sub(1);
     }
 
     fn rti(&mut self) {
+        // Most likely coming from a BRK(software IRQ)- BRK is treated as a 2 byte instruction with an unused immediate
         self.flags = CpuFlags::from_bits_truncate(self.stack_pop());
         self.pc = self.stack_pop_u16();
+        // Need to subtract one pc to balance out with the end of run(), which adds one to pc
+        self.pc = self.pc.wrapping_sub(1);
     }
 
     fn rts(&mut self) {
         self.pc = self.stack_pop_u16();
-        self.pc += 1;
+        println!("rts: Finished. The pc before finishing run is {:#x}", self.pc);
+        // self.pc does not need to be added as at the end of run, the pc will be added by 1 automatically
     }
 
     fn group_three(&mut self, aaa: u8, bbb: u8, _cc: u8) {
