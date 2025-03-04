@@ -24,7 +24,7 @@ mod branch_test {
     }
 
     // Literally same as above but just testing if branch can branch negative
-    fn jump_neg(cpu: &mut CPU, op: u8, clear: bool, flag: CpuFlags){
+    fn jump_neg(cpu: &mut CPU, op: u8, clear: bool, flag: CpuFlags) {
         cpu.load_and_reset(vec![op, 0xFC, 0x00]);
         cpu.memory[0x7FFE] = op::INX;
         cpu.memory[0x7FFF] = 0x00;

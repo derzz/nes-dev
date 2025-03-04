@@ -7,8 +7,8 @@ mod branch_test;
 mod group1_test;
 mod group2_test;
 mod group3_test;
-mod other_test;
 mod op;
+mod other_test;
 mod sb1_test;
 mod sb2_test;
 mod test_fn;
@@ -888,7 +888,10 @@ impl CPU {
         // Note that self.pc is already on the memory value so we just need to push this part + 1
         // Eg. JSR 0xAA 0xBB, we would be pushing the memory address of 0xBB
         // When rts is called, pc will add 1 automatically so it returns from the next function
-        println!("jsr: Initalized! The instruction's address is {:#x}", self.pc);
+        println!(
+            "jsr: Initalized! The instruction's address is {:#x}",
+            self.pc
+        );
         self.stack_push_u16(self.pc.wrapping_add(2));
         // Need to subtract one at the end as run() will add one automatically
         self.pc = self.mem_read_u16(self.pc.wrapping_add(1)).wrapping_sub(1);
@@ -904,7 +907,10 @@ impl CPU {
 
     fn rts(&mut self) {
         self.pc = self.stack_pop_u16();
-        println!("rts: Finished. The pc before finishing run is {:#x}", self.pc);
+        println!(
+            "rts: Finished. The pc before finishing run is {:#x}",
+            self.pc
+        );
         // self.pc does not need to be added as at the end of run, the pc will be added by 1 automatically
     }
 
