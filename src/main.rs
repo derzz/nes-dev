@@ -17,6 +17,8 @@ use crate::{
     ui::ui,
 };
 
+use nes::cpu::CPU;
+
 fn main() -> Result<(), Box<dyn Error>> {
     // setup terminal
     enable_raw_mode()?;
@@ -27,7 +29,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // create app and run it
     let mut app = App::new();
-    let res = run_app(&mut terminal, &mut app);
+    let mut cpu = CPU::new();
+    let res = run_app(&mut terminal, &mut app, &cpu);
 
     // restore terminal
     disable_raw_mode()?;
@@ -40,7 +43,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     if let Ok(do_print) = res {
         if do_print {
-            app.print_json()?;
+            println!("exited successfully!")
         }
     } else if let Err(err) = res {
         println!("{err:?}");
@@ -49,9 +52,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<bool> {
+fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App, cpu: &CPU) -> io::Result<bool> {
     loop {
-        terminal.draw(|f| ui(f, app))?;
+        terminal.draw(|f| ui(f, app, cpu))?;
 
         if let Event::Key(key) = event::read()? {
             if key.kind == event::KeyEventKind::Release {
@@ -60,10 +63,10 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
             }
             match app.current_screen {
                 CurrentScreen::Main => match key.code {
-                    KeyCode::Char('e') => {
-                        app.current_screen = CurrentScreen::Editing;
-                        app.currently_editing = Some(CurrentlyEditing::Key);
-                    }
+                    // KeyCode::Char('e') => {
+                    //     app.current_screen = CurrentScreen::Editing;
+                    //     app.currently_editing = Some(CurrentlyEditing::Key);
+                    // }
                     KeyCode::Char('q') => {
                         app.current_screen = CurrentScreen::Exiting;
                     }
@@ -75,53 +78,6 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                     }
                     KeyCode::Char('n') | KeyCode::Char('q') => {
                         return Ok(false);
-                    }
-                    _ => {}
-                },
-                CurrentScreen::Editing if key.kind == KeyEventKind::Press => match key.code {
-                    KeyCode::Enter => {
-                        if let Some(editing) = &app.currently_editing {
-                            match editing {
-                                CurrentlyEditing::Key => {
-                                    app.currently_editing = Some(CurrentlyEditing::Value);
-                                }
-                                CurrentlyEditing::Value => {
-                                    app.save_key_value();
-                                    app.current_screen = CurrentScreen::Main;
-                                }
-                            }
-                        }
-                    }
-                    KeyCode::Backspace => {
-                        if let Some(editing) = &app.currently_editing {
-                            match editing {
-                                CurrentlyEditing::Key => {
-                                    app.key_input.pop();
-                                }
-                                CurrentlyEditing::Value => {
-                                    app.value_input.pop();
-                                }
-                            }
-                        }
-                    }
-                    KeyCode::Esc => {
-                        app.current_screen = CurrentScreen::Main;
-                        app.currently_editing = None;
-                    }
-                    KeyCode::Tab => {
-                        app.toggle_editing();
-                    }
-                    KeyCode::Char(value) => {
-                        if let Some(editing) = &app.currently_editing {
-                            match editing {
-                                CurrentlyEditing::Key => {
-                                    app.key_input.push(value);
-                                }
-                                CurrentlyEditing::Value => {
-                                    app.value_input.push(value);
-                                }
-                            }
-                        }
                     }
                     _ => {}
                 },
