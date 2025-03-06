@@ -13,7 +13,7 @@ use ratatui::{
 mod app;
 mod ui;
 use crate::{
-    app::{App, CurrentScreen, CurrentlyEditing},
+    app::{App, CurrentScreen},
     ui::ui,
 };
 
@@ -62,11 +62,25 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App, cpu: &CPU) -> 
                 continue;
             }
             match app.current_screen {
+                // User is editing
+                CurrentScreen::Main if app.editing =>
+                match key.code{ 
+                        KeyCode::Backspace => {
+                            app.terminal_input.pop();
+                        }
+                        KeyCode::Esc => {
+                            app.editing = false;
+                        }
+                        KeyCode::Char(value) => {
+                            app.terminal_input.push(value);
+                        }
+                        _ => {}
+                    }
+
                 CurrentScreen::Main => match key.code {
-                    // KeyCode::Char('e') => {
-                    //     app.current_screen = CurrentScreen::Editing;
-                    //     app.currently_editing = Some(CurrentlyEditing::Key);
-                    // }
+                    KeyCode::Char('i') => {
+                        app.editing = true;
+                    }
                     KeyCode::Char('q') => {
                         app.current_screen = CurrentScreen::Exiting;
                     }
@@ -77,7 +91,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App, cpu: &CPU) -> 
                         return Ok(true);
                     }
                     KeyCode::Char('n') | KeyCode::Char('q') => {
-                        return Ok(false);
+                        app.current_screen = CurrentScreen::Main;
                     }
                     _ => {}
                 },

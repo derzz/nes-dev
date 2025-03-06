@@ -6,7 +6,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::app::{App, CurrentScreen, CurrentlyEditing};
+use crate::app::{App, CurrentScreen};
 use nes::cpu::{CpuFlags, CPU};
 
 pub fn register_format(name: String, value: String) -> Vec<Span<'static>> {
@@ -49,9 +49,9 @@ pub fn ui(frame: &mut Frame, app: &App, cpu: &CPU) {
             Constraint::Length(3), // Current Memory Page
             Constraint::Min(1),    // Memory Addresses
             Constraint::Length(5), // Registers
-            Constraint::Length(1), // Flags
-            Constraint::Length(2), // Instructions, 2 to allow for gap on top
-            Constraint::Length(3), // Terminal/input area
+            Constraint::Length(2), // Flags
+            Constraint::Length(1), // Instructions, 2 to allow for gap on top
+            Constraint::Length(1), // Terminal/input area
         ])
         .split(frame.area());
 
@@ -74,46 +74,24 @@ pub fn ui(frame: &mut Frame, app: &App, cpu: &CPU) {
 
     frame.render_widget(title, chunks[0]); // Renders the terminal
 
-    // MEMORY ADDRESSES
-    // let mut list_items = Vec::<ListItem>::new();
-    // for key in app.pairs.keys() {
-    //     list_items.push(ListItem::new(Line::from(Span::styled(
-    //         format!("{: <25} : {}", key, app.pairs.get(key).unwrap()),
-    //         Style::default().fg(Color::Yellow),
-    //     ))));
-    // }
+    // Memory Addresses
+// Create a single Line with multiple Spans for horizontal display
+let mut spans = Vec::new();
+for i in 0..16 { // Increased from 9 to 16 for a better display
+    // Add each memory value as a span
+    spans.push(Span::styled(format!("{:02X} ", cpu.memory[i]), Style::default().fg(Color::Yellow)));
+    
+    // Optional: Add a separator every 4 bytes for readability
+    if (i + 1) % 8 == 0 && i < 15 {
+        spans.push(Span::styled(" | ", Style::default().fg(Color::Gray)));
+    }
+}
 
-    // let list = List::new(list_items);
+let memory_line = Line::from(spans);
+let memory_para = Paragraph::new(vec![memory_line]);
 
-    // frame.render_widget(list, chunks[1]);
-    // let current_navigation_text = vec![
-    //     // The first half of the text
-    //     match app.current_screen {
-    //         CurrentScreen::Main => Span::styled("Normal Mode", Style::default().fg(Color::Green)),
-    //         CurrentScreen::Editing => {
-    //             Span::styled("Editing Mode", Style::default().fg(Color::Yellow))
-    //         }
-    //         CurrentScreen::Exiting => Span::styled("Exiting", Style::default().fg(Color::LightRed)),
-    //     }
-    //     .to_owned(),
-    //     // A white divider bar to separate the two sections
-    //     Span::styled(" | ", Style::default().fg(Color::White)),
-    //     // The final section of the text, with hints on what the user is editing
-    //     {
-    //         if let Some(editing) = &app.currently_editing {
-    //             match editing {
-    //                 CurrentlyEditing::Key => {
-    //                     Span::styled("Editing Json Key", Style::default().fg(Color::Green))
-    //                 }
-    //                 CurrentlyEditing::Value => {
-    //                     Span::styled("Editing Json Value", Style::default().fg(Color::LightGreen))
-    //                 }
-    //             }
-    //         } else {
-    //             Span::styled("Not Editing Anything", Style::default().fg(Color::DarkGray))
-    //         }
-    //     },
-    // ];
+frame.render_widget(memory_para, chunks[1]);
+
 
     // Registers area
 
@@ -146,8 +124,6 @@ pub fn ui(frame: &mut Frame, app: &App, cpu: &CPU) {
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
         .split(chunks[2]);
 
-    let key_notes_footer =
-        Paragraph::new(Line::from("Bob")).block(Block::default().borders(Borders::ALL));
 
     frame.render_widget(register_first_half, footer_chunks[0]);
     frame.render_widget(register_second_half, footer_chunks[1]);
@@ -171,12 +147,17 @@ pub fn ui(frame: &mut Frame, app: &App, cpu: &CPU) {
         all_flag_spans.extend(flag_format(*flag, cpu));
     }
     let flag_para = Paragraph::new(Line::from(all_flag_spans));
-    frame.render_widget(flag_para, chunks[4]);
+    frame.render_widget(flag_para, chunks[3]);
 
     // Instructions
     let inst_para = Paragraph::new(Span::styled("Press q to quit.", Style::default().fg(Color::White)));
-    frame.render_widget(inst_para, chunks[5]);
+    frame.render_widget(inst_para, chunks[4]);
 
+    // Input area
+    let terminal_para = Paragraph::new(app.terminal_input.clone());
+    frame.render_widget(terminal_para, chunks[5]);
+
+    // Exiting screen
     if let CurrentScreen::Exiting = app.current_screen {
         frame.render_widget(Clear, frame.area()); //this clears the entire screen and anything already drawn
         let popup_block = Block::default()
@@ -184,7 +165,7 @@ pub fn ui(frame: &mut Frame, app: &App, cpu: &CPU) {
             .borders(Borders::NONE)
             .style(Style::default().bg(Color::DarkGray));
 
-        let exit_text = Text::styled("Would you like to ooga booga?", Style::default().fg(Color::Red));
+        let exit_text = Text::styled("Would you like to quit?", Style::default().fg(Color::Red));
         // the `trim: false` will stop the text from being cut off when over the edge of the block
         let exit_paragraph = Paragraph::new(exit_text)
             .block(popup_block)
