@@ -7,8 +7,8 @@ mod branch_test;
 mod group1_test;
 mod group2_test;
 mod group3_test;
-mod other_test;
 mod op;
+mod other_test;
 mod sb1_test;
 mod sb2_test;
 mod test_fn;
@@ -80,6 +80,7 @@ impl fmt::Display for AddressingMode {
 
 const STACK_RESET: u8 = 0xFD;
 const STACK: u16 = 0x0100;
+const PROGRAM_START: usize = 0x0600;
 
 impl CPU {
     pub fn new() -> Self {
@@ -117,8 +118,15 @@ impl CPU {
     }
 
     // Resets RAM from $0000 to $07FF
+    // If program_start neds to be changed(eg as in snake, we subtract 1)
     fn ram_reset(&mut self) {
-        for i in 0x0..0x07FF {
+        for i in 0x0..PROGRAM_START as usize {
+            self.memory[i] = 0;
+        }
+    }
+
+    fn fn_reset(&mut self){
+        for i in PROGRAM_START as usize.. 0xFFFF {
             self.memory[i] = 0;
         }
     }
@@ -137,21 +145,91 @@ impl CPU {
 
     pub fn load(&mut self, program: Vec<u8>) {
         println!("load: Initalized");
-        self.memory[0x8000..(0x8000 + program.len())].copy_from_slice(&program[..]);
-        self.mem_write_u16(0xFFFC, 0x8000); // Save reference to program in 0xFFFC
+        self.memory[PROGRAM_START as usize..(PROGRAM_START as usize + program.len())]
+            .copy_from_slice(&program[..]);
+        self.mem_write_u16(0xFFFC, PROGRAM_START as u16); // Save reference to program in 0xFFFC
         println!("load: Finished!");
     }
 
     // This function is meant for testing, where the test can insert their own values afterwards
     pub fn load_and_reset(&mut self, program: Vec<u8>) {
+        self.fn_reset();
         self.load(program);
         self.reset();
     }
 
+    pub fn instruction_print(&self, program: Vec<u8>) {
+        let program_len = program.len();
+        println!(
+            "Memory dump ({} bytes from 0x{:04X}):",
+            program_len, PROGRAM_START
+        );
+        println!("Addr    | Hex                                      | ASCII");
+        println!("--------+------------------------------------------+------------------");
+
+        for i in 0..program_len {
+            let addr = PROGRAM_START + i;
+
+            // Print address at start of each line
+            if i % 16 == 0 {
+                if i > 0 {
+                    print!(" | ");
+                    // Print ASCII representation for previous line
+                    for j in i - 16..i {
+                        let byte = self.memory[PROGRAM_START + j];
+                        if byte >= 32 && byte <= 126 {
+                            print!("{}", byte as char);
+                        } else {
+                            print!(".");
+                        }
+                    }
+                    println!();
+                }
+                print!("{:04X}    | ", addr);
+            }
+
+            // Print byte value
+            print!("{:02X} ", self.memory[addr]);
+
+            // Add extra space after 8 bytes
+            if i % 16 == 7 {
+                print!(" ");
+            }
+        }
+
+        // Print ASCII for the last line
+        let remaining = program_len % 16;
+        if remaining > 0 {
+            // Pad for alignment
+            for i in remaining..16 {
+                // Use 'i' instead of '_'
+                print!("   ");
+                if remaining <= 8 && i == 7 {
+                    print!(" ");
+                }
+            }
+        }
+
+        print!(" | ");
+        let start_idx = program_len - (if remaining > 0 { remaining } else { 16 });
+        for j in start_idx..program_len {
+            let byte = self.memory[PROGRAM_START + j];
+            if byte >= 32 && byte <= 126 {
+                print!("{}", byte as char);
+            } else {
+                print!(".");
+            }
+        }
+        println!("\n");
+    }
+
     pub fn load_and_run(&mut self, program: Vec<u8>) {
         println!("load_and_run: Initalized");
-        self.load(program);
+        self.load(program.clone());
         self.reset();
+        // USED FOR TESTING
+        println!("Printing out what's in instructions");
+        self.instruction_print(program);
         self.run();
     }
 
@@ -174,23 +252,31 @@ impl CPU {
         }
     }
 
-    fn mem_read(&mut self, addr: u16) -> Byte {
-        println!("mem_read: addr is {:#x}", addr);
+    pub fn mem_read(&self, addr: u16) -> Byte {
         let ret = self.memory[addr as usize];
         // self.pc = self.pc.wrapping_add(1);
         ret
     }
 
-    fn mem_write(&mut self, addr: u16, data: u8) {
+    pub fn mem_write(&mut self, addr: u16, data: u8) {
         let ret = self.memory[addr as usize] = data;
         // self.pc = self.pc.wrapping_add(1);
         ret
     }
 
     pub fn run(&mut self) {
+        self.run_with_callback(|_| {});
+    }
+
+    pub fn run_with_callback<F>(&mut self, mut callback: F)
+    where
+        F: FnMut(&mut CPU),
+    {
         println!("run: Initalized");
         loop {
+            print_title!("Starting run!");
             println!("run: Reading values, starting with pc {:#x}", self.pc);
+            println!("run: Flags [NV-BDIZC]: {:08b}", self.flags.bits());
             if self.pc == 0xFFFF && self.flags.contains(CpuFlags::INTERRUPT_DISABLE) {
                 println!("run: IRQ detected, most likely from a brk. Stopping execution...");
                 break;
@@ -242,10 +328,7 @@ impl CPU {
             }
             // NOTE: Before this runs, PC must be at the instruction before the next command
             self.pc = self.pc.wrapping_add(1);
-        }
-        // CLeaning program ROM
-        for i in 0x8000..=0xFFFE {
-            self.memory[i] = 0;
+            callback(self);
         }
         print_title!("End of current execution");
     }
@@ -575,6 +658,7 @@ impl CPU {
 
         self.a = result;
         self.zero_negative_flag(self.a);
+        println!("add to a: final result is {}", self.a);
     }
 
     fn adc(&mut self, addr: u16) {
@@ -585,8 +669,10 @@ impl CPU {
     fn sbc(&mut self, addr: u16) {
         let val = self.mem_read(addr);
         // wrapping_neg calculates two's complement negation
-        let mem = (val as i8).wrapping_neg() as u8;
-        println!("sbc: Old value is {:#b}, new value is {:#b}", val, mem);
+        // 2s complements adds 1 at the end, we subtract 1 to just get the not version of memory
+        // Clear now doesn't need to be negated as this counters the 1
+        let mem = ((val as i8).wrapping_neg().wrapping_sub(1)) as u8;
+        println!("sbc: Old value is {:#b}, reverted value is {:#b}", val, mem);
         self.add_to_a(mem);
     }
 
@@ -604,18 +690,24 @@ impl CPU {
     fn compare(&mut self, addr: u16, val: u8) {
         // BUG need to figure out val and mem[addr]
         let addr_val = self.mem_read(addr);
-        println!("compare: val is {}, addr_val is {}", val, addr_val);
+        println!("compare: val is {:#x}, addr_val is {:#x}", val, addr_val);
         let res = val.wrapping_sub(addr_val) as i8;
 
         if res >= 0 {
             self.flags.insert(CpuFlags::CARRY);
+        } else {
+            self.flags.remove(CpuFlags::CARRY);
         }
         if res == 0 {
             self.flags.insert(CpuFlags::ZERO);
+        } else {
+            self.flags.remove(CpuFlags::ZERO);
         }
         if res < 0 {
             // Subtraction is negative
             self.flags.insert(CpuFlags::NEGATIVE);
+        } else {
+            self.flags.remove(CpuFlags::NEGATIVE);
         }
     }
 
@@ -862,6 +954,7 @@ impl CPU {
     }
 
     fn if_contain_flag_branch(&mut self, flag: CpuFlags) {
+        println!("if_contain_flag_branch: Checking flag {:#b}", flag);
         if self.flags.contains(flag) {
             self.branch();
         }
@@ -888,10 +981,15 @@ impl CPU {
         // Note that self.pc is already on the memory value so we just need to push this part + 1
         // Eg. JSR 0xAA 0xBB, we would be pushing the memory address of 0xBB
         // When rts is called, pc will add 1 automatically so it returns from the next function
-        println!("jsr: Initalized! The instruction's address is {:#x}", self.pc);
+        println!(
+            "jsr: Initalized! The instruction's address is {:#x}",
+            self.pc
+        );
         self.stack_push_u16(self.pc.wrapping_add(2));
         // Need to subtract one at the end as run() will add one automatically
-        self.pc = self.mem_read_u16(self.pc.wrapping_add(1)).wrapping_sub(1);
+        let new_pc = self.mem_read_u16(self.pc.wrapping_add(1)).wrapping_sub(1);
+        println!("jsr: Going to new address: {:#x}", new_pc + 1);
+        self.pc = new_pc;
     }
 
     fn rti(&mut self) {
@@ -904,7 +1002,10 @@ impl CPU {
 
     fn rts(&mut self) {
         self.pc = self.stack_pop_u16();
-        println!("rts: Finished. The pc before finishing run is {:#x}", self.pc);
+        println!(
+            "rts: Finished. The pc before finishing run is {:#x}",
+            self.pc
+        );
         // self.pc does not need to be added as at the end of run, the pc will be added by 1 automatically
     }
 
@@ -950,7 +1051,7 @@ impl CPU {
             }
             let addr = self.get_operand_address(&mode);
             println!(
-                "group_three: Deciding what instruction with aaa: {:#b} and address {}",
+                "group_three: Deciding what instruction with aaa: {:#b} and address {:#x}",
                 aaa, addr
             );
             match aaa {
