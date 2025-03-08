@@ -305,9 +305,9 @@ mod group3_test {
         assert!(cpu.x == 1, "Relative jump failed, cpu.x value is {}", cpu.x);
         // JMP test with page bug
         print_title!("JMP() with page bug");
-        cpu.load_and_reset(vec![g3_op::JMP_REL, 0xFF, 0x06]);
-        cpu.memory[0x06FF] = 0xAA;
-        cpu.memory[0x0600] = 0x01;
+        cpu.load_and_reset(vec![g3_op::JMP_REL, 0xFF, 0x01]);
+        cpu.memory[0x01FF] = 0xAA;
+        cpu.memory[0x0100] = 0x01;
         cpu.memory[0x01AA] = 0xE8;
         cpu.run();
         assert!(

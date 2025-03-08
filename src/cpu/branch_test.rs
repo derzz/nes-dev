@@ -6,6 +6,7 @@ mod branch_test {
     use crate::cpu::op::*;
     use crate::cpu::CpuFlags;
     use crate::cpu::CPU;
+    use crate::cpu::PROGRAM_START;
 
     // All this will do is run [op 0x01 0x00 INX]
     // Specify clear if the flag should be clear(This will enable all flags except the chosen flag)
@@ -26,8 +27,8 @@ mod branch_test {
     // Literally same as above but just testing if branch can branch negative
     fn jump_neg(cpu: &mut CPU, op: u8, clear: bool, flag: CpuFlags) {
         cpu.load_and_reset(vec![op, 0xFC, 0x00]);
-        cpu.memory[0x7FFE] = op::INX;
-        cpu.memory[0x7FFF] = 0x00;
+        cpu.memory[PROGRAM_START - 2] = op::INX;
+        cpu.memory[PROGRAM_START - 1] = 0x00;
         if clear {
             println!("branch_test: Allocating flags to clear!");
             cpu.flags = CpuFlags::from_bits_truncate(0b1111_1111);

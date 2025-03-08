@@ -1,7 +1,8 @@
 #[cfg(test)]
-mod branch_test {
+mod other_test {
     use crate::cpu::op::*;
     use crate::cpu::CPU;
+    use crate::cpu::PROGRAM_START;
 
     // BRK is not tested as every other test hinges on BRK working...
 
@@ -11,10 +12,13 @@ mod branch_test {
     #[test]
     fn test_jsr_rts() {
         let mut cpu = CPU::new();
+        let target_addr = PROGRAM_START + 5; // Address of INX
+    let lil_end = (target_addr & 0xFF) as u8;
+    let big_end = ((target_addr >> 8) & 0xFF) as u8; // Correct high byte
         cpu.load_and_run(vec![
             other_op::JSR,
-            0x05,
-            0x80,
+            lil_end as u8,
+            big_end as u8,
             op::INY,
             0x00,
             op::INX,
