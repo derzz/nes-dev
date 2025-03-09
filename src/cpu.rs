@@ -1,7 +1,7 @@
 use super::print_title;
+use crate::bus::Bus;
 use bitflags::bitflags;
 use std::fmt;
-use crate::bus::Bus;
 
 mod branch_test;
 mod group1_test;
@@ -118,14 +118,14 @@ impl Mem for CPU {
     fn mem_read_u16(&mut self, pos: u16) -> u16 {
         self.bus.mem_read_u16(pos)
     }
-    
+
     fn mem_write_u16(&mut self, pos: u16, data: u16) {
         self.bus.mem_write_u16(pos, data);
     }
 }
 
 impl CPU {
-    pub fn new() -> Self {
+    pub fn new(bus: Bus) -> Self {
         CPU {
             pc: 0,
             a: 0,
@@ -133,7 +133,7 @@ impl CPU {
             y: 0,
             sp: STACK_RESET,
             flags: CpuFlags::from_bits_truncate(0b0010_0100),
-            bus: Bus::new(),
+            bus: bus,
         }
     }
 
@@ -169,13 +169,11 @@ impl CPU {
         self.mem_write_u16(0xFFFC, 0x0000);
     }
 
-
     // This function is meant for testing, where the test can insert their own values afterwards
     pub fn load_and_reset(&mut self, program: Vec<u8>) {
         self.load(program);
         self.reset();
     }
-
 
     pub fn load_and_run(&mut self, program: Vec<u8>) {
         println!("load_and_run: Initalized");
