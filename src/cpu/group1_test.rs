@@ -590,7 +590,6 @@ mod group1_test {
         test_cmp_helper(&mut cpu, 0x10, 0x20, false, false, true); // A < M
     }
 
-
     #[test]
     fn test_sbc() {
         let mut cpu = CPU::new();
@@ -599,15 +598,15 @@ mod group1_test {
         for i in 0..2 {
             let carry = if i == 0 { false } else { true };
             let c = carry as u8;
-            
+
             // Basic subtraction: 0x05 - 0x02 = 0x03
             gen_test(&mut cpu, fh, sh, 0x05, 0x02, 0x03 - !carry as u8, carry);
             test_adc_flag_check(&cpu, true, false, false, false, "Basic subtraction");
-            
+
             // Subtraction with borrow: 0x05 - 0x08 = 0xFD (with carry)
             gen_test(&mut cpu, fh, sh, 0x05, 0x08, 0xFD - !carry as u8, carry);
             test_adc_flag_check(&cpu, false, false, false, true, "Subtraction with borrow");
-            
+
             // Negative result: 0x05 - 0x08 = 0xFD (with carry)
             gen_test(&mut cpu, fh, sh, 0x05, 0x08, 0xFD - !carry as u8, carry);
             test_adc_flag_check(&cpu, false, false, false, true, "Negative result");
