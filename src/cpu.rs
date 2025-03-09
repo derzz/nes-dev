@@ -82,6 +82,42 @@ const STACK_RESET: u8 = 0xFD;
 const STACK: u16 = 0x0100;
 const PROGRAM_START: usize = 0x0600;
 
+pub trait Mem {
+    fn mem_read(&self, addr: u16) -> Byte;
+    fn mem_write(&mut self, addr: u16, data: u8);
+    // Used to read address in little endian
+    fn mem_read_u16(&mut self, pos: u16) -> u16 {
+        // If interrupt request is enabled, stop program exectuion
+        // if pos == 0xFFFE && self.flags.contains(CpuFlags::INTERRUPT_DISABLE) {
+        //     // BUG Used for irq handler, mitigating for now
+        //     println!("mem_read_u16: Detected break. Reading from IRQ handler...");
+        //     return 0xFFFF;
+        // }
+        let lo = self.mem_read(pos) as u16;
+        let hi = self.mem_read(pos + 1) as u16;
+        (hi << 8) | (lo as u16)
+    }
+
+    // Writes to address in terms of little endian
+    fn mem_write_u16(&mut self, pos: u16, data: u16) {
+        let hi = (data >> 8) as u8;
+        let lo = (data & 0xff) as u8;
+        self.mem_write(pos, lo);
+        self.mem_write(pos + 1, hi);
+    }
+}
+
+impl Mem for CPU {
+    fn mem_read(&self, addr: u16) -> u8 {
+        let ret = self.memory[addr as usize];
+        ret
+    }
+
+    fn mem_write(&mut self, addr: u16, data: u8) {
+        self.memory[addr as usize] = data;
+    }
+}
+
 impl CPU {
     pub fn new() -> Self {
         CPU {
@@ -96,27 +132,6 @@ impl CPU {
         }
     }
 
-    // Used to read address in little endian
-    fn mem_read_u16(&mut self, pos: u16) -> u16 {
-        // If interrupt request is enabled, stop program exectuion
-        if pos == 0xFFFE && self.flags.contains(CpuFlags::INTERRUPT_DISABLE) {
-            // BUG Used for irq handler, mitigating for now
-            println!("mem_read_u16: Detected break. Reading from IRQ handler...");
-            return 0xFFFF;
-        }
-        let lo = self.mem_read(pos) as u16;
-        let hi = self.mem_read(pos + 1) as u16;
-        (hi << 8) | (lo as u16)
-    }
-
-    // Writes to address in terms of little endian
-    fn mem_write_u16(&mut self, pos: u16, data: u16) {
-        let hi = (data >> 8) as u8;
-        let lo = (data & 0xff) as u8;
-        self.mem_write(pos, lo);
-        self.mem_write(pos + 1, hi);
-    }
-
     // Resets RAM from $0000 to $07FF
     // If program_start neds to be changed(eg as in snake, we subtract 1)
     fn ram_reset(&mut self) {
@@ -125,8 +140,8 @@ impl CPU {
         }
     }
 
-    fn fn_reset(&mut self){
-        for i in PROGRAM_START as usize.. 0xFFFF {
+    fn fn_reset(&mut self) {
+        for i in PROGRAM_START as usize..0xFFFF {
             self.memory[i] = 0;
         }
     }
@@ -252,18 +267,6 @@ impl CPU {
         }
     }
 
-    pub fn mem_read(&self, addr: u16) -> Byte {
-        let ret = self.memory[addr as usize];
-        // self.pc = self.pc.wrapping_add(1);
-        ret
-    }
-
-    pub fn mem_write(&mut self, addr: u16, data: u8) {
-        let ret = self.memory[addr as usize] = data;
-        // self.pc = self.pc.wrapping_add(1);
-        ret
-    }
-
     pub fn run(&mut self) {
         self.run_with_callback(|_| {});
     }
@@ -299,6 +302,7 @@ impl CPU {
             // Top is hard coding remaining instructions
             if op == 0x0 {
                 self.brk();
+                return; // NOTE: Break will return without PC needing to jump anywhere
             } else if op == 0x20 {
                 self.jsr();
             } else if op == 0x40 {

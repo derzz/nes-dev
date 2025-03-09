@@ -13,8 +13,8 @@ mod other_test {
     fn test_jsr_rts() {
         let mut cpu = CPU::new();
         let target_addr = PROGRAM_START + 5; // Address of INX
-    let lil_end = (target_addr & 0xFF) as u8;
-    let big_end = ((target_addr >> 8) & 0xFF) as u8; // Correct high byte
+        let lil_end = (target_addr & 0xFF) as u8;
+        let big_end = ((target_addr >> 8) & 0xFF) as u8; // Correct high byte
         cpu.load_and_run(vec![
             other_op::JSR,
             lil_end as u8,
