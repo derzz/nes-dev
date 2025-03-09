@@ -1,6 +1,5 @@
 pub mod bus;
 pub mod cpu;
-pub mod lib;
 pub mod rom;
 
 use cpu::*;

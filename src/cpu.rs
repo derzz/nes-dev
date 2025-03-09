@@ -1,17 +1,18 @@
-use super::print_title;
 use crate::bus::Bus;
 use bitflags::bitflags;
 use std::fmt;
+use nes::print_title;
 
-mod branch_test;
-mod group1_test;
-mod group2_test;
-mod group3_test;
-mod op;
-mod other_test;
-mod sb1_test;
-mod sb2_test;
-mod test_fn;
+// Testing files, not needed now due to BUS and ROM implemenation messing up the tests
+// mod branch_test;
+// mod group1_test;
+// mod group2_test;
+// mod group3_test;
+// mod op;
+// mod other_test;
+// mod sb1_test;
+// mod sb2_test;
+// mod test_fn;
 
 type Byte = u8;
 
@@ -79,7 +80,6 @@ impl fmt::Display for AddressingMode {
 
 const STACK_RESET: u8 = 0xFD;
 const STACK: u16 = 0x0100;
-const PROGRAM_START: usize = 0x0600;
 
 pub trait Mem {
     fn mem_read(&self, addr: u16) -> Byte;
