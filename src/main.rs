@@ -1,11 +1,17 @@
-use nes::cpu::CPU;
+pub mod cpu;
+pub mod lib;
+pub mod bus;
+
+use cpu::*;
+use bus::*;
+
 use rand::Rng;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::EventPump;
-mod bus;
+
 fn handle_user_input(cpu: &mut CPU, event_pump: &mut EventPump) {
     for event in event_pump.poll_iter() {
         match event {

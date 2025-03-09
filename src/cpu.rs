@@ -1,7 +1,7 @@
 use super::print_title;
 use bitflags::bitflags;
 use std::fmt;
-use std::time::Duration;
+use crate::bus::Bus;
 
 mod branch_test;
 mod group1_test;
@@ -38,8 +38,7 @@ pub struct CPU {
     pub sp: Byte,
     pub flags: CpuFlags,
     // [0x8000... 0xFFFF] is reserved for program ROM
-    pub memory: [u8; 0xFFFF],
-    pub clock_time: Duration,
+    pub bus: Bus,
 }
 
 #[derive(Debug)]
@@ -109,12 +108,19 @@ pub trait Mem {
 
 impl Mem for CPU {
     fn mem_read(&self, addr: u16) -> u8 {
-        let ret = self.memory[addr as usize];
-        ret
+        self.bus.mem_read(addr)
     }
 
     fn mem_write(&mut self, addr: u16, data: u8) {
-        self.memory[addr as usize] = data;
+        self.bus.mem_write(addr, data);
+    }
+
+    fn mem_read_u16(&mut self, pos: u16) -> u16 {
+        self.bus.mem_read_u16(pos)
+    }
+    
+    fn mem_write_u16(&mut self, pos: u16, data: u16) {
+        self.bus.mem_write_u16(pos, data);
     }
 }
 
@@ -127,24 +133,23 @@ impl CPU {
             y: 0,
             sp: STACK_RESET,
             flags: CpuFlags::from_bits_truncate(0b0010_0100),
-            memory: [0; 0xFFFF],
-            clock_time: Duration::from_millis(1), // Example value
+            bus: Bus::new(),
         }
     }
 
-    // Resets RAM from $0000 to $07FF
-    // If program_start neds to be changed(eg as in snake, we subtract 1)
-    fn ram_reset(&mut self) {
-        for i in 0x0..PROGRAM_START as usize {
-            self.memory[i] = 0;
-        }
-    }
+    // // Resets RAM from $0000 to $07FF
+    // // If program_start neds to be changed(eg as in snake, we subtract 1)
+    // fn ram_reset(&mut self) {
+    //     for i in 0x0..PROGRAM_START as usize {
+    //         self.memory[i] = 0;
+    //     }
+    // }
 
-    fn fn_reset(&mut self) {
-        for i in PROGRAM_START as usize..0xFFFF {
-            self.memory[i] = 0;
-        }
-    }
+    // fn fn_reset(&mut self) {
+    //     for i in PROGRAM_START as usize..0xFFFF {
+    //         self.memory[i] = 0;
+    //     }
+    // }
 
     // Restores registers and initalizes PC to the 2 byte value at 0xFFFC
     pub fn reset(&mut self) {
@@ -155,88 +160,22 @@ impl CPU {
         self.flags = CpuFlags::from_bits_truncate(0b00100100);
         self.sp = STACK_RESET;
         self.pc = self.mem_read_u16(0xFFFC);
-        self.ram_reset();
     }
 
     pub fn load(&mut self, program: Vec<u8>) {
-        println!("load: Initalized");
-        self.memory[PROGRAM_START as usize..(PROGRAM_START as usize + program.len())]
-            .copy_from_slice(&program[..]);
-        self.mem_write_u16(0xFFFC, PROGRAM_START as u16); // Save reference to program in 0xFFFC
-        println!("load: Finished!");
+        for i in 0..(program.len() as u16) {
+            self.mem_write(0x0000 + i, program[i as usize]);
+        }
+        self.mem_write_u16(0xFFFC, 0x0000);
     }
+
 
     // This function is meant for testing, where the test can insert their own values afterwards
     pub fn load_and_reset(&mut self, program: Vec<u8>) {
-        self.fn_reset();
         self.load(program);
         self.reset();
     }
 
-    pub fn instruction_print(&self, program: Vec<u8>) {
-        let program_len = program.len();
-        println!(
-            "Memory dump ({} bytes from 0x{:04X}):",
-            program_len, PROGRAM_START
-        );
-        println!("Addr    | Hex                                      | ASCII");
-        println!("--------+------------------------------------------+------------------");
-
-        for i in 0..program_len {
-            let addr = PROGRAM_START + i;
-
-            // Print address at start of each line
-            if i % 16 == 0 {
-                if i > 0 {
-                    print!(" | ");
-                    // Print ASCII representation for previous line
-                    for j in i - 16..i {
-                        let byte = self.memory[PROGRAM_START + j];
-                        if byte >= 32 && byte <= 126 {
-                            print!("{}", byte as char);
-                        } else {
-                            print!(".");
-                        }
-                    }
-                    println!();
-                }
-                print!("{:04X}    | ", addr);
-            }
-
-            // Print byte value
-            print!("{:02X} ", self.memory[addr]);
-
-            // Add extra space after 8 bytes
-            if i % 16 == 7 {
-                print!(" ");
-            }
-        }
-
-        // Print ASCII for the last line
-        let remaining = program_len % 16;
-        if remaining > 0 {
-            // Pad for alignment
-            for i in remaining..16 {
-                // Use 'i' instead of '_'
-                print!("   ");
-                if remaining <= 8 && i == 7 {
-                    print!(" ");
-                }
-            }
-        }
-
-        print!(" | ");
-        let start_idx = program_len - (if remaining > 0 { remaining } else { 16 });
-        for j in start_idx..program_len {
-            let byte = self.memory[PROGRAM_START + j];
-            if byte >= 32 && byte <= 126 {
-                print!("{}", byte as char);
-            } else {
-                print!(".");
-            }
-        }
-        println!("\n");
-    }
 
     pub fn load_and_run(&mut self, program: Vec<u8>) {
         println!("load_and_run: Initalized");
@@ -244,7 +183,6 @@ impl CPU {
         self.reset();
         // USED FOR TESTING
         println!("Printing out what's in instructions");
-        self.instruction_print(program);
         self.run();
     }
 
@@ -470,10 +408,6 @@ impl CPU {
     fn pha(&mut self) {
         println!("pha: Initalized");
         self.stack_push(self.a);
-        println!(
-            "pha: Pushed {}",
-            self.memory[(0x0100 + self.sp.wrapping_add(1) as u16) as usize]
-        );
     }
 
     fn pla(&mut self) {
