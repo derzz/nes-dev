@@ -1,7 +1,7 @@
 use crate::bus::Bus;
 use bitflags::bitflags;
-use std::fmt;
 use nes::print_title;
+use std::fmt;
 
 // Testing files, not needed now due to BUS and ROM implemenation messing up the tests
 // mod branch_test;
