@@ -18,18 +18,16 @@ pub struct StatusRegister: u8{
 }
 }
 
-impl StatusRegister{
-    pub fn new() -> Self{
+impl StatusRegister {
+    pub fn new() -> Self {
         StatusRegister::from_bits_truncate(0x00) //BUG may not be initalized to this value
     }
 
-    pub fn clear_vblank(&mut self){
+    pub fn clear_vblank(&mut self) {
         self.remove(StatusRegister::VBLANK);
     }
 
-    pub fn get_status(&self) -> u8{
+    pub fn get_status(&self) -> u8 {
         self.bits()
     }
-
-
 }

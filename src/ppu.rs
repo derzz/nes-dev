@@ -8,7 +8,7 @@ pub struct PPU {
     pub vram: [u8; 2048],
     pub oam_data: [u8; 256],
     pub internal_data_buf: u8,
-    
+
     pub addr: AddrRegister,
     pub status: StatusRegister,
     pub ctrl: ControlRegister,
@@ -38,7 +38,7 @@ impl PPU {
     }
 
     // 0x2002 read, PPUSTATUS
-    pub fn read_status(&mut self) -> u8{
+    pub fn read_status(&mut self) -> u8 {
         // Flags are read, Vblank and w register should be cleared after read
         let ret = self.status.get_status();
         self.status.clear_vblank();
