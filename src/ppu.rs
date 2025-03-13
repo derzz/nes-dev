@@ -1,7 +1,6 @@
-
-use crate::rom::Mirroring;
+use crate::ppu_reg::statusreg::StatusRegister;
 use crate::ppu_reg::{addrreg::AddrRegister, controlreg::ControlRegister};
-
+use crate::rom::Mirroring;
 
 pub struct PPU {
     pub chr_rom: Vec<u8>,
@@ -9,8 +8,11 @@ pub struct PPU {
     pub vram: [u8; 2048],
     pub oam_data: [u8; 256],
     pub internal_data_buf: u8,
+    
     pub addr: AddrRegister,
+    pub status: StatusRegister,
     pub ctrl: ControlRegister,
+
     pub mirroring: Mirroring,
 }
 
@@ -23,6 +25,7 @@ impl PPU {
             oam_data: [0; 256],
             internal_data_buf: 0, // Emulating internal data buffer
             addr: AddrRegister::new(),
+            status: StatusRegister::new(),
             ctrl: ControlRegister::new(),
             mirroring: mirroring,
         }
@@ -34,6 +37,14 @@ impl PPU {
         self.ctrl.update(val);
     }
 
+    // 0x2002 read, PPUSTATUS
+    pub fn read_status(&mut self) -> u8{
+        // Flags are read, Vblank and w register should be cleared after read
+        let ret = self.status.get_status();
+        self.status.clear_vblank();
+        ret
+    }
+
     // 0x2006 write, PPUADDR
     pub fn write_to_ppu_addr(&mut self, val: u8) {
         self.addr.update(val);
@@ -41,23 +52,23 @@ impl PPU {
 
     // 0x2007 read/write, PPUDATA(VRAM read/write data register)
     // Writes to data
-    pub fn write_to_data(&mut self, val: u8){
+    pub fn write_to_data(&mut self, val: u8) {
         let addr = self.addr.get();
-        match addr{
+        match addr {
             0..=0x1fff => println!("Attempt to write to character rom space!"),
-            0x2000..=0x2FFF =>{
+            0x2000..=0x2FFF => {
                 // Name tables
                 self.vram[self.mirror_vram_addr(addr) as usize] = val;
-            },
+            }
             0x3000..=0x3EFF => unimplemented!("Unused ppu memory attempted to write {}", addr),
-            // Scales down to palette RAM 
-            0x3F10 | 0x3F14 | 0x3F18 | 0x3F1C =>{
+            // Scales down to palette RAM
+            0x3F10 | 0x3F14 | 0x3F18 | 0x3F1C => {
                 let mirr_addr = addr - 0x3F10; // BUG may be copies of 0x3F00 instead?
                 self.palette_table[mirr_addr as usize] = val;
             }
             // BUG should be scaling down by mirroring
-            0x3F00..= 0x3FFF => self.palette_table[((addr - 0x3f00) % 32) as usize] = val,
-            _ => panic!("Unknown write access to mirrored space {}", addr)
+            0x3F00..=0x3FFF => self.palette_table[((addr - 0x3f00) % 32) as usize] = val,
+            _ => panic!("Unknown write access to mirrored space {}", addr),
         }
 
         self.increment_vram_addr();
@@ -88,7 +99,7 @@ impl PPU {
                 // Unused
                 "0x3000 to 0x3eff is not expected to be used, the requested address is {}",
                 addr
-            ), 
+            ),
             0x3f00..=0x3fff => self.palette_table[(addr - 0x3f00) as usize], // Palette RAM, 0x3F20-0x3FFF are mirrors of 0x3F00-0x3F1F
             _ => panic!("unexpected access to mirrored space {}", addr),
         }

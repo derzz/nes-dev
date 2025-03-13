@@ -3,7 +3,6 @@ use bitflags::bitflags;
 use nes::print_title;
 use std::fmt;
 
-
 type Byte = u8;
 
 bitflags! {
