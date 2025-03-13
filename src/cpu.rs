@@ -3,16 +3,6 @@ use bitflags::bitflags;
 use nes::print_title;
 use std::fmt;
 
-// Testing files, not needed now due to BUS and ROM implemenation messing up the tests
-// mod branch_test;
-// mod group1_test;
-// mod group2_test;
-// mod group3_test;
-// mod op;
-// mod other_test;
-// mod sb1_test;
-// mod sb2_test;
-// mod test_fn;
 
 type Byte = u8;
 
@@ -82,7 +72,7 @@ const STACK_RESET: u8 = 0xFD;
 const STACK: u16 = 0x0100;
 
 pub trait Mem {
-    fn mem_read(&self, addr: u16) -> Byte;
+    fn mem_read(&mut self, addr: u16) -> Byte;
     fn mem_write(&mut self, addr: u16, data: u8);
     // Used to read address in little endian
     fn mem_read_u16(&mut self, pos: u16) -> u16 {
@@ -107,7 +97,7 @@ pub trait Mem {
 }
 
 impl Mem for CPU {
-    fn mem_read(&self, addr: u16) -> u8 {
+    fn mem_read(&mut self, addr: u16) -> u8 {
         self.bus.mem_read(addr)
     }
 
