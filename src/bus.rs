@@ -31,7 +31,7 @@ impl Bus {
 
 const RAM: u16 = 0x0000;
 const RAM_MIRRORS_END: u16 = 0x1FFF; // 0x800- 0x1FFF mirrors of 0000-07FF
-const PPU_REGISTERS: u16 = 0x2000; // 0x2000- 0x2007 NES PPU Registers(Communication with PPU)
+// const PPU_REGISTERS: u16 = 0x2000; // 0x2000- 0x2007 NES PPU Registers(Communication with PPU)
 const PPU_REGISTERS_MIRRORS_END: u16 = 0x3FFF; // Mirrors of above for every 8 bytes
                                                // Cartride ROM and mapper registers
 const PROGRAM_RAM: u16 = 0x8000;
@@ -49,6 +49,7 @@ impl Mem for Bus {
                 panic!("Attempt to read from write-only PPU address {:x}", addr);
             }
             0x2002 => self.ppu.read_status(),
+            0x2004 => self.ppu.read_oam_data(),
             0x2007 => self.ppu.read_data(),
             0x2008..=PPU_REGISTERS_MIRRORS_END => {
                 // Mirroring down to 0x2000 to 0x2007
@@ -73,18 +74,25 @@ impl Mem for Bus {
             0x2000 => {
                 self.ppu.write_to_ctrl(data);
             }
+            // PPUMask Rendering
             0x2001 => {
+                // When writing to this, should mean write the data to this register
                 unimplemented!("PPUMASK")
             }
             0x2002 => panic!("Attempt to write to PPU status register PPUSTATUS"),
-            0x2003 => unimplemented!("OMADDR"),
-            0x2004 => unimplemented!("OAMDATA"),
-            0x2005 => unimplemented!("PPUSCROLL"),
+            0x2003 => self.ppu.write_to_oam_addr(data),
+            0x2004 => self.ppu.write_to_oam_data(data),
+            0x2005 => self.ppu.write_to_ppuscroll(data),
             0x2006 => {
                 self.ppu.write_to_ppu_addr(data);
             }
             0x2007 => {
                 self.ppu.write_to_data(data);
+            }
+0x2008..=PPU_REGISTERS_MIRRORS_END => {
+                let mirror_addr = addr & 0b00100000_00000111;
+                self.mem_write(mirror_addr, data);
+                // todo!("PPU is not supported yet");
             }
             PROGRAM_RAM..=PROGRAM_RAM_END => {
                 panic!("Attempt to write to program RAM space!");

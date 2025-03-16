@@ -30,4 +30,17 @@ impl StatusRegister {
     pub fn get_status(&self) -> u8 {
         self.bits()
     }
+
+    pub fn set_vblank_status(&mut self, val: bool){
+        if val{
+            self.insert(StatusRegister::VBLANK);
+        }
+        else{
+            self.remove(StatusRegister::VBLANK);
+        }
+    }
+
+    pub fn snapshot(&self) -> u8{
+        self.bits()
+    }
 }
