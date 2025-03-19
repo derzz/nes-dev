@@ -27,8 +27,8 @@ pub struct CPU {
     pub y: Byte,
     pub sp: Byte,
     pub flags: CpuFlags,
-    // [0x8000... 0xFFFF] is reserved for program ROM
     pub bus: Bus,
+    cycles: u8, // Stores the number of cycles for one instruction, always restarts to 0 at start of run
 }
 
 #[derive(Debug)]
@@ -123,6 +123,7 @@ impl CPU {
             sp: STACK_RESET,
             flags: CpuFlags::from_bits_truncate(0b0010_0100),
             bus: bus,
+            cycles: 0
         }
     }
 
@@ -205,6 +206,7 @@ impl CPU {
             print_title!("Starting run!");
             println!("run: Reading values, starting with pc {:#x}", self.pc);
             println!("run: Flags [NV-BDIZC]: {:08b}", self.flags.bits());
+            self.cycles = 2; // Reset the cycles, minimum amount of cycles for any instruction
             if self.pc == 0xFFFF && self.flags.contains(CpuFlags::INTERRUPT_DISABLE) {
                 println!("run: IRQ detected, most likely from a brk. Stopping execution...");
                 break;
@@ -262,17 +264,26 @@ impl CPU {
         print_title!("End of current execution");
     }
 
+    fn g1_check_page_jump(&mut self, address: u16, is_a: bool){
+        let end = address & 0x0F;
+        if end == 0xFF || is_a{
+            self.cycles += 1;
+        }
+    }
+
     fn get_operand_address(&mut self, mode: &AddressingMode) -> u16 {
         println!("get_operand_address: Initalized");
         self.pc = self.pc.wrapping_add(1);
         match mode {
-            AddressingMode::Immediate => self.pc,
+            AddressingMode::Immediate => self.pc, // No need to add 
 
             AddressingMode::Accumulator => unimplemented!(
                 "get_operand_address: Accumulator addressing are not supported from this function"
             ),
 
-            AddressingMode::ZeroPage => self.mem_read(self.pc) as u16,
+            AddressingMode::ZeroPage => {
+                self.mem_read(self.pc) as u16
+            },
 
             AddressingMode::Absolute => {
                 println!("get_operand_address: in absolute mode");
@@ -286,6 +297,7 @@ impl CPU {
                 let addr = pos.wrapping_add(self.x) as u16;
                 addr
             }
+            // (Indirect), Y in NESDev wiki
             AddressingMode::ZeroPage_Y => {
                 let pos = self.mem_read(self.pc);
                 let addr = pos.wrapping_add(self.y) as u16;
@@ -293,7 +305,7 @@ impl CPU {
             }
 
             AddressingMode::Absolute_X => {
-                println!("get_operand_address: In Absolute_X");
+                                 println!("get_operand_address: In Absolute_X");
                 let base = self.mem_read_u16(self.pc);
                 self.pc = self.pc.wrapping_add(1);
                 let addr = base.wrapping_add(self.x as u16);
@@ -305,7 +317,7 @@ impl CPU {
                 let addr = base.wrapping_add(self.y as u16);
                 addr
             }
-
+            // Used for JMP
             AddressingMode::Indirect => {
                 println!("get_operand_address: In Indirect");
                 let base = self.mem_read_u16(self.pc);
@@ -338,7 +350,6 @@ impl CPU {
             // Look at address at LSB = c0 and MSB = C0 + 1 => Address LSB + MSB + Y
             AddressingMode::Indirect_Y => {
                 let base = self.mem_read(self.pc);
-
                 let lo = self.mem_read(base as u16);
                 let hi = self.mem_read((base as u16).wrapping_add(1) as u16);
                 let deref_base = (hi as u16) << 8 | (lo as u16);
@@ -352,9 +363,37 @@ impl CPU {
         }
     }
 
+    // Note cycles have been initiated to 2, these calculations are filling up the remaining cycles
+    // STA works uniquely and will work differently
+    fn g1_cycles(&mut self, mode: &AddressingMode, address: u16, is_sta: bool){
+        match mode{
+           AddressingMode::Immediate => return,
+           AddressingMode:: ZeroPage => self.cycles += 1,
+           AddressingMode::ZeroPage_X => self.cycles += 2,
+           AddressingMode::Absolute => self.cycles += 2,
+           AddressingMode::Absolute_X =>{
+            self.cycles += 2;
+            self.g1_check_page_jump(address, is_sta);
+           },
+           AddressingMode::Absolute_Y => {
+            self.cycles += 2;
+            self.g1_check_page_jump(address, is_sta);
+           },
+           AddressingMode::Indirect_X => {
+            self.cycles += 4;
+           }
+           AddressingMode::Indirect_Y => {
+            self.cycles += 3;
+            self.g1_check_page_jump(address, is_sta);
+           },
+           _ => println!("{} not supported in group 1, no cycles added.", mode)
+        }
+    } 
+    
     fn stack_push(&mut self, data: u8) {
         self.mem_write((STACK as u16) + self.sp as u16, data);
         self.sp = self.sp.wrapping_sub(1);
+        self.cycles += 1; // BUG extra cycle needed for pushing value
     }
 
     fn stack_push_u16(&mut self, data: u16) {
@@ -368,6 +407,7 @@ impl CPU {
         self.sp = self.sp.wrapping_add(1);
         let ret = self.mem_read((STACK as u16) + self.sp as u16);
         println!("stack_pop: popped {}", ret);
+        self.cycles += 2; // BUG Extra cycle to increment stack pointer
         ret
     }
 
@@ -646,6 +686,7 @@ impl CPU {
         let mode = self.group_one_bbb(bbb);
         println!("group_one: Selected mode {}, bbb is {:3b}", mode, bbb);
         let addr = self.get_operand_address(&mode); // Memory location of the value to extract
+        self.g1_cycles(&mode, addr, aaa == 4); // Adds cycles based on addressing mode, if aaa is 4, we're dealing with STA
         match aaa {
             0 => self.ora(addr),
             1 => self.and(addr),

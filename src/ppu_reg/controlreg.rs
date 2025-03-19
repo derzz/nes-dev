@@ -46,4 +46,13 @@ impl ControlRegister {
     pub fn update(&mut self, data: u8) {
         *self = ControlRegister::from_bits_truncate(data);
     }
+
+    pub fn generate_vblank_nmi(&self) -> bool{
+        if self.contains(ControlRegister::GENERATE_NMI){
+            true
+        }
+        else{
+            false
+        }
+    }
 }

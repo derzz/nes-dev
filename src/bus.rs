@@ -8,6 +8,7 @@ pub struct Bus {
     cpu_vram: [u8; 2048],
     prg_rom: Vec<u8>,
     ppu: PPU,
+    cycles: usize
 }
 
 impl Bus {
@@ -17,6 +18,7 @@ impl Bus {
             cpu_vram: [0; 2048],
             prg_rom: rom.prg_rom,
             ppu: ppu,
+            cycles: 0,
         }
     }
     fn read_prg_rom(&self, mut addr: u16) -> u8 {
@@ -27,11 +29,17 @@ impl Bus {
         }
         self.prg_rom[addr as usize]
     }
+
+    // Counting ticks
+    pub fn tick(&mut self, cycles: u8){
+        self.cycles += cycles as usize;
+        self.ppu.tick(cycles * 3); //PPU Cycles are 3 times faster than CPU clock cycles
+    }
 }
 
 const RAM: u16 = 0x0000;
 const RAM_MIRRORS_END: u16 = 0x1FFF; // 0x800- 0x1FFF mirrors of 0000-07FF
-// const PPU_REGISTERS: u16 = 0x2000; // 0x2000- 0x2007 NES PPU Registers(Communication with PPU)
+                                     // const PPU_REGISTERS: u16 = 0x2000; // 0x2000- 0x2007 NES PPU Registers(Communication with PPU)
 const PPU_REGISTERS_MIRRORS_END: u16 = 0x3FFF; // Mirrors of above for every 8 bytes
                                                // Cartride ROM and mapper registers
 const PROGRAM_RAM: u16 = 0x8000;
@@ -89,7 +97,7 @@ impl Mem for Bus {
             0x2007 => {
                 self.ppu.write_to_data(data);
             }
-0x2008..=PPU_REGISTERS_MIRRORS_END => {
+            0x2008..=PPU_REGISTERS_MIRRORS_END => {
                 let mirror_addr = addr & 0b00100000_00000111;
                 self.mem_write(mirror_addr, data);
                 // todo!("PPU is not supported yet");

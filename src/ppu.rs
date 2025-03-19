@@ -18,6 +18,9 @@ pub struct PPU {
     pub scroll: ScrollRegister,
 
     pub mirroring: Mirroring,
+
+    scanline: u16, // Which scanline should be drawn
+    cycles: usize // Location of current cycle
 }
 
 impl PPU {
@@ -39,7 +42,34 @@ impl PPU {
             mask: MaskRegister::new(),
             scroll: ScrollRegister::new(),
             mirroring: mirroring,
+            scanline: 0,
+            cycles: 0
         }
+    }
+
+    pub fn tick(&mut self, cycles: u8) -> bool{
+        self.cycles += cycles as usize;
+        // Scanline lasts for 341 PPU cycles
+        if self.cycles >= 341{
+            self.cycles -= 341;
+            self.scanline += 1;
+
+            // Scanline is on vBlank line
+            if self.scanline == 241 {
+                // Enabling causes NMI interrupt to be called at start of vblank
+                if self.ctrl.generate_vblank_nmi(){
+                    self.status.set_vblank_status(true);
+                    todo!("Triggers nmi interrupt")
+                }
+            }
+
+            if self.scanline == 262{
+                self.scanline = 0;
+                self.status.reset_vblank_status();
+                return true; // Indicating reset and full render is done
+            }
+        }
+        return false; // Full render is not finished
     }
 
     // 0x2000 write, PPUCTRL(Flags)
@@ -49,7 +79,7 @@ impl PPU {
     }
 
     // 0x2001 write, PPUMASK
-    pub fn write_to_mask(&mut self, val: u8){
+    pub fn write_to_mask(&mut self, val: u8) {
         self.mask.update(val);
     }
 
@@ -63,22 +93,22 @@ impl PPU {
     }
 
     // 0x2003 write, OAMADDR
-    pub fn write_to_oam_addr(&mut self, val: u8){
+    pub fn write_to_oam_addr(&mut self, val: u8) {
         self.oam_addr = val;
     }
 
     // 0x2004 read, OAMDATA
-    pub fn read_oam_data(&self) -> u8{
+    pub fn read_oam_data(&self) -> u8 {
         self.oam_data[self.oam_addr as usize]
     }
 
-    pub fn write_to_oam_data(&mut self, val: u8){
+    pub fn write_to_oam_data(&mut self, val: u8) {
         self.oam_data[self.oam_addr as usize] = val;
         self.oam_addr = self.oam_addr.wrapping_add(1);
     }
 
     // 0x2005 write, PPUSCROLL
-    pub fn write_to_ppuscroll(&mut self, val: u8){
+    pub fn write_to_ppuscroll(&mut self, val: u8) {
         self.scroll.write(val);
     }
 
@@ -155,7 +185,7 @@ impl PPU {
             (Mirroring::HORIZONTAL, 3) => vram_index - 0x800,
             _ => vram_index,
         }
-    } 
+    }
 
     fn write_oam_dma(&mut self, data: &[u8; 256]) {
         for x in data.iter() {
@@ -360,7 +390,7 @@ pub mod test {
 
         ppu.write_to_oam_addr(0x10);
         assert_eq!(ppu.read_oam_data(), 0x77);
-  
+
         ppu.write_to_oam_addr(0x11);
         assert_eq!(ppu.read_oam_data(), 0x66);
     }

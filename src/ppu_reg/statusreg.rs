@@ -31,16 +31,19 @@ impl StatusRegister {
         self.bits()
     }
 
-    pub fn set_vblank_status(&mut self, val: bool){
-        if val{
+    pub fn set_vblank_status(&mut self, val: bool) {
+        if val {
             self.insert(StatusRegister::VBLANK);
-        }
-        else{
+        } else {
             self.remove(StatusRegister::VBLANK);
         }
     }
 
-    pub fn snapshot(&self) -> u8{
+    pub fn reset_vblank_status(&mut self){
+        self.remove(StatusRegister::VBLANK);
+    }
+
+    pub fn snapshot(&self) -> u8 {
         self.bits()
     }
 }

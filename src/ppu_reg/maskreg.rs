@@ -1,6 +1,6 @@
 use bitflags::bitflags;
 
-bitflags!{
+bitflags! {
 // 7  bit  0
 // ---- ----
 // BGRs bMmG
@@ -25,12 +25,12 @@ bitflags!{
     }
 }
 
-impl MaskRegister{
-    pub fn new() -> Self{
+impl MaskRegister {
+    pub fn new() -> Self {
         MaskRegister::from_bits_truncate(0x00)
     }
 
-    pub fn update(&mut self, data: u8){
+    pub fn update(&mut self, data: u8) {
         *self = MaskRegister::from_bits_truncate(data);
     }
 }
