@@ -387,19 +387,19 @@ impl CPU {
             self.cycles += 3;
             self.g1_check_page_jump(address, is_sta);
            },
-           _ => println!("{} not supported in group 1, no cycles added.", mode)
+           _ => panic!("{} not supported in group 1, no cycles added.", mode)
         }
     } 
 
     // Cycles already have been initiated to 2
-    fn g2_default_cycles(&mut self, mode: &AddressingMode, address: u16, is_sta: bool){
+    fn g2_default_cycles(&mut self, mode: &AddressingMode){
         match mode{
            AddressingMode::Accumulator => return,
            AddressingMode::ZeroPage => self.cycles += 3,
            AddressingMode::ZeroPage_X=> self.cycles += 4,
            AddressingMode::Absolute => self.cycles += 4,
            AddressingMode::Absolute_X => self.cycles += 5,
-           _ => println!("{} not supported in group 2, no cycles added. ", mode)
+           _ => panic!("{} not supported in group 2, no cycles added. ", mode)
         }
     }
 
@@ -859,7 +859,7 @@ impl CPU {
         // Adding cycles
         match aaa{
             4 | 5 => self.g1_cycles(&mode, addr, false), // stx and ldx works separately
-            _ => self.g2_default_cycles(&mode, addr, false), // Rest of g2 cycles can go here instead
+            _ => self.g2_default_cycles(&mode), // Rest of g2 cycles can go here instead
         }
 
 
@@ -1047,8 +1047,12 @@ impl CPU {
                 self.g1_cycles(&mode, addr, false);
             }
             else{
-                // TODO jmp cycles
-                todo!("Implement JMP cycles");
+                // jmp cycles
+                match mode{
+                    AddressingMode::Absolute => self.cycles += 1,
+                    AddressingMode::Indirect => self.cycles += 3,
+                    _ => panic!("{} not implemented for JMP", mode)
+                }
             }
             match aaa {
                 1 => self.bit(addr),
