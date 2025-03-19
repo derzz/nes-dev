@@ -364,12 +364,13 @@ impl CPU {
     }
 
     // Note cycles have been initiated to 2, these calculations are filling up the remaining cycles
-    // STA works uniquely and will work differently
+    // STX LDX STY LDY works in here
     fn g1_cycles(&mut self, mode: &AddressingMode, address: u16, is_sta: bool){
         match mode{
            AddressingMode::Immediate => return,
-           AddressingMode:: ZeroPage => self.cycles += 1,
+           AddressingMode::ZeroPage => self.cycles += 1,
            AddressingMode::ZeroPage_X => self.cycles += 2,
+           AddressingMode::ZeroPage_Y => self.cycles += 2, // This is only used for STX
            AddressingMode::Absolute => self.cycles += 2,
            AddressingMode::Absolute_X =>{
             self.cycles += 2;
@@ -389,6 +390,20 @@ impl CPU {
            _ => println!("{} not supported in group 1, no cycles added.", mode)
         }
     } 
+
+    // Cycles already have been initiated to 2
+    fn g2_default_cycles(&mut self, mode: &AddressingMode, address: u16, is_sta: bool){
+        match mode{
+           AddressingMode::Accumulator => return,
+           AddressingMode::ZeroPage => self.cycles += 3,
+           AddressingMode::ZeroPage_X=> self.cycles += 4,
+           AddressingMode::Absolute => self.cycles += 4,
+           AddressingMode::Absolute_X => self.cycles += 5,
+           _ => println!("{} not supported in group 2, no cycles added. ", mode)
+        }
+    }
+
+    // 
     
     fn stack_push(&mut self, data: u8) {
         self.mem_write((STACK as u16) + self.sp as u16, data);
@@ -841,8 +856,13 @@ impl CPU {
         } else {
             0
         };
-        // TODO Group 2 cycles + Extra instructions
-        
+        // Adding cycles
+        match aaa{
+            4 | 5 => self.g1_cycles(&mode, addr, false), // stx and ldx works separately
+            _ => self.g2_default_cycles(&mode, addr, false), // Rest of g2 cycles can go here instead
+        }
+
+
         match aaa {
             0 => self.asl(addr, accum),
             1 => self.rol(addr, accum),
