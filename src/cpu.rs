@@ -841,6 +841,8 @@ impl CPU {
         } else {
             0
         };
+        // TODO Group 2 cycles + Extra instructions
+        
         match aaa {
             0 => self.asl(addr, accum),
             1 => self.rol(addr, accum),
@@ -1020,6 +1022,14 @@ impl CPU {
                 "group_three: Deciding what instruction with aaa: {:#b} and address {:#x}",
                 aaa, addr
             );
+            // Everything but jmp follows the cycles from group 1
+            if aaa != 0b010 | 0b011{
+                self.g1_cycles(&mode, addr, false);
+            }
+            else{
+                // TODO jmp cycles
+                todo!("Implement JMP cycles");
+            }
             match aaa {
                 1 => self.bit(addr),
                 0b010 | 0b011 => self.jmp(addr),
