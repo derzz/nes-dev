@@ -99,7 +99,7 @@ fn main() {
         .unwrap();
     canvas.set_scale(10.0, 10.0).unwrap();
 
-    let game_bytes = std::fs::read("snake.nes").unwrap();
+    let game_bytes = std::fs::read("nestest.nes").unwrap();
     let rom = Rom::new(&game_bytes).unwrap();
     let bus = Bus::new(rom);
     let mut cpu = CPU::new(bus);

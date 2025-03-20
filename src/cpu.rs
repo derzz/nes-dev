@@ -1,4 +1,5 @@
 use crate::bus::Bus;
+
 use bitflags::bitflags;
 use nes::print_title;
 use std::fmt;
