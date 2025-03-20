@@ -1,0 +1,1 @@
+- These tests were used before the bus was created. Inspiration can be used to test the CPU with these tests.
