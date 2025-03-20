@@ -152,6 +152,16 @@ impl CPU {
         self.pc = self.mem_read_u16(0xFFFC);
     }
 
+    // This function adds to cycles. This is to avoid any direct augmentation to the cycles(making it more painful to debug)
+
+    fn reset_cycles(&mut self){
+        self.cycles = 0;
+    }
+
+    fn add_cycles(&mut self, val: u8){
+        self.cycles += val;
+    }
+
     pub fn load(&mut self, program: Vec<u8>) {
         for i in 0..(program.len() as u16) {
             self.mem_write(0x0000 + i, program[i as usize]);
@@ -206,7 +216,7 @@ impl CPU {
             print_title!("Starting run!");
             println!("run: Reading values, starting with pc {:#x}", self.pc);
             println!("run: Flags [NV-BDIZC]: {:08b}", self.flags.bits());
-            self.cycles = 2; // Reset the cycles, minimum amount of cycles for any instruction
+            self.reset_cycles();
             if self.pc == 0xFFFF && self.flags.contains(CpuFlags::INTERRUPT_DISABLE) {
                 println!("run: IRQ detected, most likely from a brk. Stopping execution...");
                 break;
@@ -264,12 +274,6 @@ impl CPU {
         print_title!("End of current execution");
     }
 
-    fn g1_check_page_jump(&mut self, address: u16, is_a: bool){
-        let end = address & 0x0F;
-        if end == 0xFF || is_a{
-            self.cycles += 1;
-        }
-    }
 
     fn get_operand_address(&mut self, mode: &AddressingMode) -> u16 {
         println!("get_operand_address: Initalized");
@@ -363,29 +367,36 @@ impl CPU {
         }
     }
 
+
+fn check_page_cross(&mut self, base_addr: u16, final_addr: u16, is_sta: bool) {
+    if
+    (base_addr >> 8) != (final_addr >> 8) || is_sta{
+        self.add_cycles(1);
+    }
+}
     // Note cycles have been initiated to 2, these calculations are filling up the remaining cycles
     // STX LDX STY LDY works in here
-    fn g1_cycles(&mut self, mode: &AddressingMode, address: u16, is_sta: bool){
+    fn g1_cycles(&mut self, mode: &AddressingMode, old_address: u16, new_address: u16, is_sta: bool){
         match mode{
-           AddressingMode::Immediate => return,
-           AddressingMode::ZeroPage => self.cycles += 1,
-           AddressingMode::ZeroPage_X => self.cycles += 2,
-           AddressingMode::ZeroPage_Y => self.cycles += 2, // This is only used for STX
-           AddressingMode::Absolute => self.cycles += 2,
+           AddressingMode::Immediate => self.add_cycles(2),
+           AddressingMode::ZeroPage => self.add_cycles(3),
+           AddressingMode::ZeroPage_X => self.add_cycles(4),
+           AddressingMode::ZeroPage_Y => self.add_cycles(4), // This is only used for STX
+           AddressingMode::Absolute => self.add_cycles(4),
            AddressingMode::Absolute_X =>{
-            self.cycles += 2;
-            self.g1_check_page_jump(address, is_sta);
+            self.add_cycles(4);
+            self.check_page_cross(old_address, new_address, is_sta);
            },
            AddressingMode::Absolute_Y => {
-            self.cycles += 2;
-            self.g1_check_page_jump(address, is_sta);
+            self.add_cycles(4);
+            self.check_page_cross(old_address, new_address, is_sta);
            },
            AddressingMode::Indirect_X => {
-            self.cycles += 4;
+            self.add_cycles(6);
            }
            AddressingMode::Indirect_Y => {
-            self.cycles += 3;
-            self.g1_check_page_jump(address, is_sta);
+            self.add_cycles(5);
+            self.check_page_cross(old_address, new_address, is_sta);
            },
            _ => panic!("{} not supported in group 1, no cycles added.", mode)
         }
@@ -394,11 +405,11 @@ impl CPU {
     // Cycles already have been initiated to 2
     fn g2_default_cycles(&mut self, mode: &AddressingMode){
         match mode{
-           AddressingMode::Accumulator => return,
-           AddressingMode::ZeroPage => self.cycles += 3,
-           AddressingMode::ZeroPage_X=> self.cycles += 4,
-           AddressingMode::Absolute => self.cycles += 4,
-           AddressingMode::Absolute_X => self.cycles += 5,
+           AddressingMode::Accumulator => self.add_cycles(2),
+           AddressingMode::ZeroPage => self.add_cycles(5),
+           AddressingMode::ZeroPage_X=> self.add_cycles(6),
+           AddressingMode::Absolute => self.add_cycles(6),
+           AddressingMode::Absolute_X => self.add_cycles(7),
            _ => panic!("{} not supported in group 2, no cycles added. ", mode)
         }
     }
@@ -406,7 +417,6 @@ impl CPU {
     fn stack_push(&mut self, data: u8) {
         self.mem_write((STACK as u16) + self.sp as u16, data);
         self.sp = self.sp.wrapping_sub(1);
-        self.cycles += 1; // BUG extra cycle needed for pushing value
     }
 
     fn stack_push_u16(&mut self, data: u16) {
@@ -420,7 +430,6 @@ impl CPU {
         self.sp = self.sp.wrapping_add(1);
         let ret = self.mem_read((STACK as u16) + self.sp as u16);
         println!("stack_pop: popped {}", ret);
-        self.cycles += 2; // BUG Extra cycle to increment stack pointer
         ret
     }
 
@@ -448,12 +457,15 @@ impl CPU {
     fn pha(&mut self) {
         println!("pha: Initalized");
         self.stack_push(self.a);
+        // Due to SB, already added 2
+        self.add_cycles(1);
     }
 
     fn pla(&mut self) {
         self.a = self.stack_pop();
         self.zero_negative_flag(self.a);
         println!("pla: pulled {}", self.a);
+        self.add_cycles(2);
     }
 
     fn dey(&mut self) {
@@ -489,6 +501,7 @@ impl CPU {
         // Eg. PHP, CLC, INX
         // lower nibble of opcode is 0x_8(eg. 0x08...0xF8)
         // Pattern represents (_ _ _ _ 1000)
+        self.add_cycles(2);
         match highnibble {
             0 => self.php(),
             // CLC clears Carry flag
@@ -552,6 +565,7 @@ impl CPU {
     pub fn sb_two(&mut self, highnibble: u8) {
         // Group 2 single byte instructions, lownibble A and high nibble >= 8
         println!("sb_two: Initalized");
+        self.add_cycles(2);
         match highnibble {
             // TXA
             8 => self.txa(),
@@ -698,8 +712,9 @@ impl CPU {
         println!("group_one: Initalized");
         let mode = self.group_one_bbb(bbb);
         println!("group_one: Selected mode {}, bbb is {:3b}", mode, bbb);
+        let old_addr = self.mem_read_u16(self.pc);
         let addr = self.get_operand_address(&mode); // Memory location of the value to extract
-        self.g1_cycles(&mode, addr, aaa == 4); // Adds cycles based on addressing mode, if aaa is 4, we're dealing with STA
+        self.g1_cycles(&mode, old_addr, addr, aaa == 4); // Adds cycles based on addressing mode, if aaa is 4, we're dealing with STA
         match aaa {
             0 => self.ora(addr),
             1 => self.and(addr),
@@ -849,6 +864,7 @@ impl CPU {
     fn group_two(&mut self, aaa: u8, bbb: u8, _cc: u8) {
         let mode = self.group_two_three_bbb(bbb);
         let accum = matches!(mode, AddressingMode::Accumulator);
+        let old_addr = self.mem_read_u16(self.pc);
         let addr = if !accum {
             self.get_operand_address(&mode)
         } else {
@@ -856,7 +872,7 @@ impl CPU {
         };
         // Adding cycles
         match aaa{
-            4 | 5 => self.g1_cycles(&mode, addr, false), // stx and ldx works separately
+            4 | 5 => self.g1_cycles(&mode, old_addr, addr, false), // stx and ldx works separately
             _ => self.g2_default_cycles(&mode), // Rest of g2 cycles can go here instead
         }
 
@@ -932,10 +948,20 @@ impl CPU {
             "branch: Initalized, starting to branch from pc {:#x}!",
             self.pc
         );
+        self.add_cycles(1);
+        let old_page = self.pc >> 8;
         let jump = self.mem_read(self.pc) as i8;
         println!("branch: jump is {:x}", jump);
-        // NOTE We do not need to add 2 as at then end of every run cycle will add 1, the other 1 is added since the pc is on the address instead of the instruction
+        // NOTE We do not need to add 2 to the pc as at then end of every run cycle will add 1, the other 1 is added since the pc is on the address instead of the instruction
+        
+        // NOTE For cycles, we add an additional 1 to allow for last pc at the end of run(this does not edit the current pc value)
+        let new_page = self.pc.wrapping_add(1) >> 8;
+        if old_page != new_page{
+            self.add_cycles(1);
+        }
+
         self.pc = self.pc.wrapping_add(jump as u16);
+         
         println!("Finished branch, pc is now on {:#x}", self.pc);
     }
 
@@ -960,7 +986,7 @@ impl CPU {
         self.flags.insert(CpuFlags::INTERRUPT_DISABLE);
         self.pc = self.mem_read_u16(0xFFFE);
         println!("brk: Set pc to {}", self.pc);
-        self.cycles += 5; // No matter implied or immediate, it takes 7 cycles
+        self.add_cycles(7);
     }
 
     fn jsr(&mut self) {
@@ -977,7 +1003,7 @@ impl CPU {
         let new_pc = self.mem_read_u16(self.pc.wrapping_add(1)).wrapping_sub(1);
         println!("jsr: Going to new address: {:#x}", new_pc + 1);
         self.pc = new_pc;
-        self.cycles += 4; // 6 cycles no matter what
+        self.add_cycles(6); // 6 cycles no matter what
     }
 
     fn rti(&mut self) {
@@ -986,17 +1012,17 @@ impl CPU {
         self.pc = self.stack_pop_u16();
         // Need to subtract one pc to balance out with the end of run(), which adds one to pc
         self.pc = self.pc.wrapping_sub(1);
-        self.cycles += 4;
+        self.add_cycles(6);
     }
 
     fn rts(&mut self) {
         self.pc = self.stack_pop_u16();
-        self.cycles += 4;
         println!(
             "rts: Finished. The pc before finishing run is {:#x}",
             self.pc
         );
         // self.pc does not need to be added as at the end of run, the pc will be added by 1 automatically
+        self.add_cycles(6);
     }
 
     fn group_three(&mut self, aaa: u8, bbb: u8, _cc: u8) {
@@ -1007,7 +1033,10 @@ impl CPU {
                 bbb
             )
         } else if bbb == 0b100 {
-            // Add pc by 1 to go to reading address
+            // Group 3 cycles: 2 will be added no matter what
+            // 1 additional if branch is taken(self.branch is called)
+            // 1 addition if page crossed(checked in self.branch)
+            self.add_cycles(2);
             self.pc = self.pc.wrapping_add(1);
             // Checking for branches
             match aaa {
@@ -1039,6 +1068,7 @@ impl CPU {
                 println!("group_three: This is jmp indirect!");
                 mode = AddressingMode::Indirect;
             }
+            let old_addr = self.mem_read_u16(self.pc);
             let addr = self.get_operand_address(&mode);
             println!(
                 "group_three: Deciding what instruction with aaa: {:#b} and address {:#x}",
@@ -1046,13 +1076,13 @@ impl CPU {
             );
             // Everything but jmp follows the cycles from group 1
             if aaa != 0b010 | 0b011{
-                self.g1_cycles(&mode, addr, false);
+                self.g1_cycles(&mode, old_addr, addr, false);
             }
             else{
                 // jmp cycles
                 match mode{
-                    AddressingMode::Absolute => self.cycles += 1,
-                    AddressingMode::Indirect => self.cycles += 3,
+                    AddressingMode::Absolute => self.add_cycles(3),
+                    AddressingMode::Indirect => self.add_cycles(5),
                     _ => panic!("{} not implemented for JMP", mode)
                 }
             }
