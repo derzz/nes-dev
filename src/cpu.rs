@@ -403,8 +403,6 @@ impl CPU {
         }
     }
 
-    // 
-    
     fn stack_push(&mut self, data: u8) {
         self.mem_write((STACK as u16) + self.sp as u16, data);
         self.sp = self.sp.wrapping_sub(1);
@@ -962,6 +960,7 @@ impl CPU {
         self.flags.insert(CpuFlags::INTERRUPT_DISABLE);
         self.pc = self.mem_read_u16(0xFFFE);
         println!("brk: Set pc to {}", self.pc);
+        self.cycles += 5; // No matter implied or immediate, it takes 7 cycles
     }
 
     fn jsr(&mut self) {
@@ -978,6 +977,7 @@ impl CPU {
         let new_pc = self.mem_read_u16(self.pc.wrapping_add(1)).wrapping_sub(1);
         println!("jsr: Going to new address: {:#x}", new_pc + 1);
         self.pc = new_pc;
+        self.cycles += 4; // 6 cycles no matter what
     }
 
     fn rti(&mut self) {
@@ -986,10 +986,12 @@ impl CPU {
         self.pc = self.stack_pop_u16();
         // Need to subtract one pc to balance out with the end of run(), which adds one to pc
         self.pc = self.pc.wrapping_sub(1);
+        self.cycles += 4;
     }
 
     fn rts(&mut self) {
         self.pc = self.stack_pop_u16();
+        self.cycles += 4;
         println!(
             "rts: Finished. The pc before finishing run is {:#x}",
             self.pc
