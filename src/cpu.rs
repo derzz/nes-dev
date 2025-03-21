@@ -176,8 +176,8 @@ impl CPU {
 
     // This can set the default instruction, and the length of the instruction based on the mode
     // Reduces the number of repeats needed
-    // This errors out
-    fn trace_default(&mut self, instr: &'static str, mode: AddressingMode) {
+    // This errors out if trace_flag is activated
+    fn trace_set(&mut self, instr: &'static str, mode: AddressingMode) {
         if self.trace_flag {
             panic!(
                 "An existing instruction exists {}, trying to override with {}",
@@ -265,6 +265,7 @@ impl CPU {
             println!("run: Reading values, starting with pc {:#x}", self.pc);
             println!("run: Flags [NV-BDIZC]: {:08b}", self.flags.bits());
             self.reset_cycles();
+            self.reset_trace(); // Resets any traces to be included
             if self.pc == 0xFFFF && self.flags.contains(CpuFlags::INTERRUPT_DISABLE) {
                 println!("run: IRQ detected, most likely from a brk. Stopping execution...");
                 break;
@@ -551,43 +552,90 @@ impl CPU {
         // lower nibble of opcode is 0x_8(eg. 0x08...0xF8)
         // Pattern represents (_ _ _ _ 1000)
         self.add_cycles(2);
-        match highnibble {
-            0 => self.php(),
+        let instr = match highnibble {
+            0 => {
+                self.php();
+                "PHP"
+            }
             // CLC clears Carry flag
             1 => {
                 println!("clc: Initalized");
                 self.flags.remove(CpuFlags::CARRY);
                 println!("clc: Flags are now {:#b}", self.flags);
+                "CLC"
             }
-            2 => self.plp(),
+            2 => {
+                self.plp();
+                "PLP"
+            }
             // SEC(set carry) sets carry flag to 1
-            3 => self.flags.insert(CpuFlags::CARRY),
+            3 => {
+                self.flags.insert(CpuFlags::CARRY);
+                "SEC"
+            }
             // PHA(Push A) stores the value of A to the current stack position
-            4 => self.pha(),
+            4 => {
+                self.pha();
+                "PHA"
+            }
             // CLI(Clear Interrupt Disable) clears the interrupt disable flag
-            5 => self.flags.remove(CpuFlags::INTERRUPT_DISABLE),
+            5 => {
+                self.flags.remove(CpuFlags::INTERRUPT_DISABLE);
+                "CLI"
+            }
             // PLA(Pull A) increments the stack pointer and loads the value at that stack position into A
-            6 => self.pla(),
+            6 => {
+                self.pla();
+                "PLA"
+            }
             //SEI(Set Interrupt Disable) sets the interrupt disable flag
-            7 => self.flags.insert(CpuFlags::INTERRUPT_DISABLE),
+            7 => {
+                self.flags.insert(CpuFlags::INTERRUPT_DISABLE);
+                "SEI"
+            }
             // DEY subtracts 1 from the Y register
-            8 => self.dey(),
+            8 => {
+                self.dey();
+                "DEY"
+            }
             // TYA transfers the Y register to the accumulator
-            9 => self.tya(),
+            9 => {
+                self.tya();
+                "TYA"
+            }
             // TAY transfer accumulator to Y register
-            10 => self.tay(),
+            10 => {
+                self.tay();
+                "TAY"
+            }
             // CLV clears the overflow tag
-            11 => self.flags.remove(CpuFlags::OVERFLOW),
+            11 => {
+                self.flags.remove(CpuFlags::OVERFLOW);
+                "CLV"
+            }
             // INY increases the Y register
-            12 => self.iny(),
+            12 => {
+                self.iny();
+                "INY"
+            }
             // CLD clears the decimal flag
-            13 => self.flags.remove(CpuFlags::DECIMAL_MODE),
+            13 => {
+                self.flags.remove(CpuFlags::DECIMAL_MODE);
+                "CLD"
+            }
             // INX increases the X register
-            14 => self.inx(),
+            14 => {
+                self.inx();
+                "INX"
+            }
             // SED sets the decimal flag
-            15 => self.flags.insert(CpuFlags::DECIMAL_MODE),
+            15 => {
+                self.flags.insert(CpuFlags::DECIMAL_MODE);
+                "SED"
+            }
             _ => unimplemented!("Unknown high nibble {} for SB1)", highnibble),
-        }
+        };
+        self.trace_set(instr, AddressingMode::NoneAddressing);
     }
 
     fn txa(&mut self) {
@@ -615,21 +663,37 @@ impl CPU {
         // Group 2 single byte instructions, lownibble A and high nibble >= 8
         println!("sb_two: Initalized");
         self.add_cycles(2);
-        match highnibble {
+        let instr = match highnibble {
             // TXA
-            8 => self.txa(),
+            8 => {
+                self.txa();
+                "TXA"
+            },
             // TXS
-            9 => self.sp = self.x,
+            9 => {
+                self.sp = self.x;
+                "TXS"
+            },
             // TAX
-            10 => self.tax(),
-            11 => self.tsx(),
-            12 => self.dex(),
+            10 => {
+                self.tax();
+                "TAX"
+            },
+            11 => {
+                self.tsx();
+                "TSX"
+            },
+            12 => {
+                self.dex();
+                "DEX"
+            },
             13 => unimplemented!("Phx not implemented"),
             // NOP
-            14 => return,
+            14 => "NOP",
             15 => unimplemented!("Plx not implemented"),
             _ => unimplemented!("Unknown highnibble {} with low nibble 0xA(SB2)", highnibble),
-        }
+        };
+        self.trace_set(instr, AddressingMode::NoneAddressing);
     }
 
     // Used to determine addressing mode based on bbb bits
@@ -1035,6 +1099,7 @@ impl CPU {
         self.pc = self.mem_read_u16(0xFFFE);
         println!("brk: Set pc to {}", self.pc);
         self.add_cycles(7);
+        self.trace_set("BRK", AddressingMode::NoneAddressing);
     }
 
     fn jsr(&mut self) {
@@ -1052,6 +1117,7 @@ impl CPU {
         println!("jsr: Going to new address: {:#x}", new_pc + 1);
         self.pc = new_pc;
         self.add_cycles(6); // 6 cycles no matter what
+        self.trace_set("JSR", AddressingMode::Absolute);
     }
 
     fn rti(&mut self) {
@@ -1061,6 +1127,7 @@ impl CPU {
         // Need to subtract one pc to balance out with the end of run(), which adds one to pc
         self.pc = self.pc.wrapping_sub(1);
         self.add_cycles(6);
+        self.trace_set("RTI", AddressingMode::NoneAddressing)
     }
 
     fn rts(&mut self) {
@@ -1071,6 +1138,7 @@ impl CPU {
         );
         // self.pc does not need to be added as at the end of run, the pc will be added by 1 automatically
         self.add_cycles(6);
+        self.trace_set("RTS", AddressingMode::NoneAddressing);
     }
 
     fn group_three(&mut self, aaa: u8, bbb: u8, _cc: u8) {
