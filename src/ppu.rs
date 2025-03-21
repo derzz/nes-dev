@@ -20,7 +20,7 @@ pub struct PPU {
     pub mirroring: Mirroring,
 
     scanline: u16, // Which scanline should be drawn
-    cycles: usize // Location of current cycle
+    cycles: usize, // Location of current cycle
 }
 
 impl PPU {
@@ -43,27 +43,27 @@ impl PPU {
             scroll: ScrollRegister::new(),
             mirroring: mirroring,
             scanline: 0,
-            cycles: 0
+            cycles: 0,
         }
     }
 
-    pub fn tick(&mut self, cycles: u8) -> bool{
+    pub fn tick(&mut self, cycles: u8) -> bool {
         self.cycles += cycles as usize;
         // Scanline lasts for 341 PPU cycles
-        if self.cycles >= 341{
+        if self.cycles >= 341 {
             self.cycles -= 341;
             self.scanline += 1;
 
             // Scanline is on vBlank line
             if self.scanline == 241 {
                 // Enabling causes NMI interrupt to be called at start of vblank
-                if self.ctrl.generate_vblank_nmi(){
+                if self.ctrl.generate_vblank_nmi() {
                     self.status.set_vblank_status(true);
                     todo!("Triggers nmi interrupt")
                 }
             }
 
-            if self.scanline == 262{
+            if self.scanline == 262 {
                 self.scanline = 0;
                 self.status.reset_vblank_status();
                 return true; // Indicating reset and full render is done

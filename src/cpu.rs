@@ -1,8 +1,9 @@
 use crate::bus::Bus;
 
 use bitflags::bitflags;
+use core::panic;
 use nes::print_title;
-use std::fmt;
+use std::{fmt, ops::Add};
 
 type Byte = u8;
 
@@ -29,7 +30,13 @@ pub struct CPU {
     pub sp: Byte,
     pub flags: CpuFlags,
     pub bus: Bus,
-    cycles: u8, // Stores the number of cycles for one instruction, always restarts to 0 at start of run
+    pub cycles: u8, // Stores the number of cycles for one instruction, always restarts to 0 at start of run
+
+    // These are meant for testing and used in the trace
+    pub instr: &'static str,  // The appcode equivalent instruction
+    pub len: u8, // The length of the instruction with its addressing(May vary based on instruction length)
+    pub mode: AddressingMode, // What AddressingMode used
+    pub trace_flag: bool, // If true, it indicates an instruction has already been traced, if trying to edit with this flag set to true, returns an error
 }
 
 #[derive(Debug)]
@@ -124,7 +131,12 @@ impl CPU {
             sp: STACK_RESET,
             flags: CpuFlags::from_bits_truncate(0b0010_0100),
             bus: bus,
-            cycles: 0
+            cycles: 0,
+
+            instr: "",
+            len: 0,
+            mode: AddressingMode::NoneAddressing,
+            trace_flag: false,
         }
     }
 
@@ -154,13 +166,48 @@ impl CPU {
     }
 
     // This function adds to cycles. This is to avoid any direct augmentation to the cycles(making it more painful to debug)
-
-    fn reset_cycles(&mut self){
+    fn reset_cycles(&mut self) {
         self.cycles = 0;
     }
 
-    fn add_cycles(&mut self, val: u8){
+    fn add_cycles(&mut self, val: u8) {
         self.cycles += val;
+    }
+
+    // This can set the default instruction, and the length of the instruction based on the mode
+    // Reduces the number of repeats needed
+    // This errors out
+    fn trace_default(&mut self, instr: &'static str, mode: AddressingMode) {
+        if self.trace_flag {
+            panic!(
+                "An existing instruction exists {}, trying to override with {}",
+                self.instr, instr
+            );
+        }
+
+        self.instr = instr;
+        match mode {
+            AddressingMode::NoneAddressing | AddressingMode::Accumulator => self.len = 1, // POTENTIAL_BUG Accumulator should be 1
+            AddressingMode::Immediate
+            | AddressingMode::ZeroPage
+            | AddressingMode::ZeroPage_X
+            | AddressingMode::ZeroPage_Y
+            | AddressingMode::Indirect_X
+            | AddressingMode::Indirect_Y => self.len = 2,
+
+            AddressingMode::Absolute
+            | AddressingMode::Absolute_X
+            | AddressingMode::Absolute_Y
+            | AddressingMode::Indirect => self.len = 3,
+        }
+        self.trace_flag = true;
+    }
+
+    fn reset_trace(&mut self) {
+        self.instr = "";
+        self.len = 0;
+        self.mode = AddressingMode::NoneAddressing;
+        self.trace_flag = false;
     }
 
     pub fn load(&mut self, program: Vec<u8>) {
@@ -275,20 +322,17 @@ impl CPU {
         print_title!("End of current execution");
     }
 
-
     fn get_operand_address(&mut self, mode: &AddressingMode) -> u16 {
         println!("get_operand_address: Initalized");
         self.pc = self.pc.wrapping_add(1);
         match mode {
-            AddressingMode::Immediate => self.pc, // No need to add 
+            AddressingMode::Immediate => self.pc, // No need to add
 
             AddressingMode::Accumulator => unimplemented!(
                 "get_operand_address: Accumulator addressing are not supported from this function"
             ),
 
-            AddressingMode::ZeroPage => {
-                self.mem_read(self.pc) as u16
-            },
+            AddressingMode::ZeroPage => self.mem_read(self.pc) as u16,
 
             AddressingMode::Absolute => {
                 println!("get_operand_address: in absolute mode");
@@ -310,7 +354,7 @@ impl CPU {
             }
 
             AddressingMode::Absolute_X => {
-                                 println!("get_operand_address: In Absolute_X");
+                println!("get_operand_address: In Absolute_X");
                 let base = self.mem_read_u16(self.pc);
                 self.pc = self.pc.wrapping_add(1);
                 let addr = base.wrapping_add(self.x as u16);
@@ -368,50 +412,54 @@ impl CPU {
         }
     }
 
-
-fn check_page_cross(&mut self, base_addr: u16, final_addr: u16, is_sta: bool) {
-    if
-    (base_addr >> 8) != (final_addr >> 8) || is_sta{
-        self.add_cycles(1);
+    fn check_page_cross(&mut self, base_addr: u16, final_addr: u16, is_sta: bool) {
+        if (base_addr >> 8) != (final_addr >> 8) || is_sta {
+            self.add_cycles(1);
+        }
     }
-}
     // Note cycles have been initiated to 2, these calculations are filling up the remaining cycles
     // STX LDX STY LDY works in here
-    fn g1_cycles(&mut self, mode: &AddressingMode, old_address: u16, new_address: u16, is_sta: bool){
-        match mode{
-           AddressingMode::Immediate => self.add_cycles(2),
-           AddressingMode::ZeroPage => self.add_cycles(3),
-           AddressingMode::ZeroPage_X => self.add_cycles(4),
-           AddressingMode::ZeroPage_Y => self.add_cycles(4), // This is only used for STX
-           AddressingMode::Absolute => self.add_cycles(4),
-           AddressingMode::Absolute_X =>{
-            self.add_cycles(4);
-            self.check_page_cross(old_address, new_address, is_sta);
-           },
-           AddressingMode::Absolute_Y => {
-            self.add_cycles(4);
-            self.check_page_cross(old_address, new_address, is_sta);
-           },
-           AddressingMode::Indirect_X => {
-            self.add_cycles(6);
-           }
-           AddressingMode::Indirect_Y => {
-            self.add_cycles(5);
-            self.check_page_cross(old_address, new_address, is_sta);
-           },
-           _ => panic!("{} not supported in group 1, no cycles added.", mode)
+    fn g1_cycles(
+        &mut self,
+        mode: &AddressingMode,
+        old_address: u16,
+        new_address: u16,
+        is_sta: bool,
+    ) {
+        match mode {
+            AddressingMode::Immediate => self.add_cycles(2),
+            AddressingMode::ZeroPage => self.add_cycles(3),
+            AddressingMode::ZeroPage_X => self.add_cycles(4),
+            AddressingMode::ZeroPage_Y => self.add_cycles(4), // This is only used for STX
+            AddressingMode::Absolute => self.add_cycles(4),
+            AddressingMode::Absolute_X => {
+                self.add_cycles(4);
+                self.check_page_cross(old_address, new_address, is_sta);
+            }
+            AddressingMode::Absolute_Y => {
+                self.add_cycles(4);
+                self.check_page_cross(old_address, new_address, is_sta);
+            }
+            AddressingMode::Indirect_X => {
+                self.add_cycles(6);
+            }
+            AddressingMode::Indirect_Y => {
+                self.add_cycles(5);
+                self.check_page_cross(old_address, new_address, is_sta);
+            }
+            _ => panic!("{} not supported in group 1, no cycles added.", mode),
         }
-    } 
+    }
 
     // Cycles already have been initiated to 2
-    fn g2_default_cycles(&mut self, mode: &AddressingMode){
-        match mode{
-           AddressingMode::Accumulator => self.add_cycles(2),
-           AddressingMode::ZeroPage => self.add_cycles(5),
-           AddressingMode::ZeroPage_X=> self.add_cycles(6),
-           AddressingMode::Absolute => self.add_cycles(6),
-           AddressingMode::Absolute_X => self.add_cycles(7),
-           _ => panic!("{} not supported in group 2, no cycles added. ", mode)
+    fn g2_default_cycles(&mut self, mode: &AddressingMode) {
+        match mode {
+            AddressingMode::Accumulator => self.add_cycles(2),
+            AddressingMode::ZeroPage => self.add_cycles(5),
+            AddressingMode::ZeroPage_X => self.add_cycles(6),
+            AddressingMode::Absolute => self.add_cycles(6),
+            AddressingMode::Absolute_X => self.add_cycles(7),
+            _ => panic!("{} not supported in group 2, no cycles added. ", mode),
         }
     }
 
@@ -872,11 +920,10 @@ fn check_page_cross(&mut self, base_addr: u16, final_addr: u16, is_sta: bool) {
             0
         };
         // Adding cycles
-        match aaa{
+        match aaa {
             4 | 5 => self.g1_cycles(&mode, old_addr, addr, false), // stx and ldx works separately
             _ => self.g2_default_cycles(&mode), // Rest of g2 cycles can go here instead
         }
-
 
         match aaa {
             0 => self.asl(addr, accum),
@@ -954,15 +1001,15 @@ fn check_page_cross(&mut self, base_addr: u16, final_addr: u16, is_sta: bool) {
         let jump = self.mem_read(self.pc) as i8;
         println!("branch: jump is {:x}", jump);
         // NOTE We do not need to add 2 to the pc as at then end of every run cycle will add 1, the other 1 is added since the pc is on the address instead of the instruction
-        
+
         // NOTE For cycles, we add an additional 1 to allow for last pc at the end of run(this does not edit the current pc value)
         let new_page = self.pc.wrapping_add(1) >> 8;
-        if old_page != new_page{
+        if old_page != new_page {
             self.add_cycles(1);
         }
 
         self.pc = self.pc.wrapping_add(jump as u16);
-         
+
         println!("Finished branch, pc is now on {:#x}", self.pc);
     }
 
@@ -1076,15 +1123,14 @@ fn check_page_cross(&mut self, base_addr: u16, final_addr: u16, is_sta: bool) {
                 aaa, addr
             );
             // Everything but jmp follows the cycles from group 1
-            if aaa != 0b010 | 0b011{
+            if aaa != 0b010 | 0b011 {
                 self.g1_cycles(&mode, old_addr, addr, false);
-            }
-            else{
+            } else {
                 // jmp cycles
-                match mode{
+                match mode {
                     AddressingMode::Absolute => self.add_cycles(3),
                     AddressingMode::Indirect => self.add_cycles(5),
-                    _ => panic!("{} not implemented for JMP", mode)
+                    _ => panic!("{} not implemented for JMP", mode),
                 }
             }
             match aaa {

@@ -47,11 +47,10 @@ impl ControlRegister {
         *self = ControlRegister::from_bits_truncate(data);
     }
 
-    pub fn generate_vblank_nmi(&self) -> bool{
-        if self.contains(ControlRegister::GENERATE_NMI){
+    pub fn generate_vblank_nmi(&self) -> bool {
+        if self.contains(ControlRegister::GENERATE_NMI) {
             true
-        }
-        else{
+        } else {
             false
         }
     }

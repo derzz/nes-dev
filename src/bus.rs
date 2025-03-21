@@ -8,7 +8,7 @@ pub struct Bus {
     cpu_vram: [u8; 2048],
     prg_rom: Vec<u8>,
     ppu: PPU,
-    cycles: usize
+    cycles: usize,
 }
 
 impl Bus {
@@ -31,7 +31,7 @@ impl Bus {
     }
 
     // Counting ticks
-    pub fn tick(&mut self, cycles: u8){
+    pub fn tick(&mut self, cycles: u8) {
         self.cycles += cycles as usize;
         self.ppu.tick(cycles * 3); //PPU Cycles are 3 times faster than CPU clock cycles
     }

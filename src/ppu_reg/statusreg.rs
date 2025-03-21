@@ -39,7 +39,7 @@ impl StatusRegister {
         }
     }
 
-    pub fn reset_vblank_status(&mut self){
+    pub fn reset_vblank_status(&mut self) {
         self.remove(StatusRegister::VBLANK);
     }
 
