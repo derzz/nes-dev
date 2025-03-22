@@ -177,7 +177,7 @@ impl CPU {
     // This can set the default instruction, and the length of the instruction based on the mode
     // Reduces the number of repeats needed
     // This errors out
-    fn trace_default(&mut self, instr: &'static str, mode: AddressingMode) {
+    fn trace_set(&mut self, instr: &'static str, mode: AddressingMode) {
         if self.trace_flag {
             panic!(
                 "An existing instruction exists {}, trying to override with {}",
@@ -551,43 +551,92 @@ impl CPU {
         // lower nibble of opcode is 0x_8(eg. 0x08...0xF8)
         // Pattern represents (_ _ _ _ 1000)
         self.add_cycles(2);
-        match highnibble {
-            0 => self.php(),
+        
+        let instr = match highnibble {
+            0 => {
+                self.php();
+                "PHP"
+            },
             // CLC clears Carry flag
             1 => {
                 println!("clc: Initalized");
                 self.flags.remove(CpuFlags::CARRY);
                 println!("clc: Flags are now {:#b}", self.flags);
-            }
-            2 => self.plp(),
+                "CLC"
+            },
+            2 => {
+                self.plp();
+                "PLP"
+            },
             // SEC(set carry) sets carry flag to 1
-            3 => self.flags.insert(CpuFlags::CARRY),
+            3 => {
+                self.flags.insert(CpuFlags::CARRY);
+                "SEC"
+            },
             // PHA(Push A) stores the value of A to the current stack position
-            4 => self.pha(),
+            4 => {
+                self.pha();
+                "PHA"
+            },
             // CLI(Clear Interrupt Disable) clears the interrupt disable flag
-            5 => self.flags.remove(CpuFlags::INTERRUPT_DISABLE),
+            5 => {
+                self.flags.remove(CpuFlags::INTERRUPT_DISABLE);
+                "CLI"
+            },
             // PLA(Pull A) increments the stack pointer and loads the value at that stack position into A
-            6 => self.pla(),
+            6 => {
+                self.pla();
+                "PLA"
+            },
             //SEI(Set Interrupt Disable) sets the interrupt disable flag
-            7 => self.flags.insert(CpuFlags::INTERRUPT_DISABLE),
+            7 => {
+                self.flags.insert(CpuFlags::INTERRUPT_DISABLE);
+                "SEI"
+            },
             // DEY subtracts 1 from the Y register
-            8 => self.dey(),
+            8 => {
+                self.dey();
+                "DEY"
+            },
             // TYA transfers the Y register to the accumulator
-            9 => self.tya(),
+            9 => {
+                self.tya();
+                "TYA"
+            },
             // TAY transfer accumulator to Y register
-            10 => self.tay(),
+            10 => {
+                self.tay();
+                "TAY"
+            },
             // CLV clears the overflow tag
-            11 => self.flags.remove(CpuFlags::OVERFLOW),
+            11 => {
+                self.flags.remove(CpuFlags::OVERFLOW);
+                "CLV"
+            },
             // INY increases the Y register
-            12 => self.iny(),
+            12 => {
+                self.iny();
+                "INY"
+            },
             // CLD clears the decimal flag
-            13 => self.flags.remove(CpuFlags::DECIMAL_MODE),
+            13 => {
+                self.flags.remove(CpuFlags::DECIMAL_MODE);
+                "CLD"
+            },
             // INX increases the X register
-            14 => self.inx(),
+            14 => {
+                self.inx();
+                "INX"
+            },
             // SED sets the decimal flag
-            15 => self.flags.insert(CpuFlags::DECIMAL_MODE),
+            15 => {
+                self.flags.insert(CpuFlags::DECIMAL_MODE);
+                "SED"
+            },
             _ => unimplemented!("Unknown high nibble {} for SB1)", highnibble),
-        }
+        };
+        
+        self.trace_set(instr, AddressingMode::NoneAddressing);
     }
 
     fn txa(&mut self) {
@@ -615,7 +664,7 @@ impl CPU {
         // Group 2 single byte instructions, lownibble A and high nibble >= 8
         println!("sb_two: Initalized");
         self.add_cycles(2);
-        match highnibble {
+        let instr = match highnibble {
             // TXA
             8 => {
                 self.txa();
@@ -644,7 +693,8 @@ impl CPU {
             14 => return,
             15 => unimplemented!("Plx not implemented"),
             _ => unimplemented!("Unknown highnibble {} with low nibble 0xA(SB2)", highnibble),
-        }
+        };
+        self.trace_set(instr, AddressingMode::NoneAddressing);
     }
 
     // Used to determine addressing mode based on bbb bits
