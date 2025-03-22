@@ -617,13 +617,28 @@ impl CPU {
         self.add_cycles(2);
         match highnibble {
             // TXA
-            8 => self.txa(),
+            8 => {
+                self.txa();
+                "TXA"
+            }
             // TXS
-            9 => self.sp = self.x,
+            9 => {
+                self.sp = self.x;
+                "TXS"
+            }
             // TAX
-            10 => self.tax(),
-            11 => self.tsx(),
-            12 => self.dex(),
+            10 => {
+                self.tax();
+                "TAX"
+            }
+            11 => {
+                self.tsx();
+                "TSX"
+            }
+            12 => {
+                self.dex();
+                "DEX"
+            }
             13 => unimplemented!("Phx not implemented"),
             // NOP
             14 => return,
@@ -764,17 +779,42 @@ impl CPU {
         let old_addr = self.mem_read_u16(self.pc);
         let addr = self.get_operand_address(&mode); // Memory location of the value to extract
         self.g1_cycles(&mode, old_addr, addr, aaa == 4); // Adds cycles based on addressing mode, if aaa is 4, we're dealing with STA
-        match aaa {
-            0 => self.ora(addr),
-            1 => self.and(addr),
-            2 => self.eor(addr),
-            3 => self.adc(addr),
-            4 => self.sta(addr),
-            5 => self.lda(addr),
-            6 => self.cmp(addr),
-            7 => self.sbc(addr),
+        let instr = match aaa {
+            0 => {
+                self.ora(addr);
+                "ORA"
+            }
+            1 => {
+                self.and(addr);
+                "AND"
+            }
+            2 => {
+                self.eor(addr);
+                "EOR"
+            }
+            3 => {
+                self.adc(addr);
+                "ADC"
+            }
+            4 => {
+                self.sta(addr);
+                "STA"
+            }
+            5 => {
+                self.lda(addr);
+                "LDA"
+            }
+            6 => {
+                self.cmp(addr);
+                "CMP"
+            }
+            7 => {
+                self.sbc(addr);
+                "SBC"
+            }
             _ => unimplemented!("aaa"),
-        }
+        };
+        self.trace_set(instr, mode);
     }
 
     // Group Two Functions
@@ -925,17 +965,42 @@ impl CPU {
             _ => self.g2_default_cycles(&mode), // Rest of g2 cycles can go here instead
         }
 
-        match aaa {
-            0 => self.asl(addr, accum),
-            1 => self.rol(addr, accum),
-            2 => self.lsr(addr, accum),
-            3 => self.ror(addr, accum),
-            4 => self.stx(addr),
-            5 => self.ldx(addr),
-            6 => self.dec(addr),
-            7 => self.inc(addr),
+        let instr = match aaa {
+            0 => {
+                self.asl(addr, accum);
+                "ASL"
+            }
+            1 => {
+                self.rol(addr, accum);
+                "ROL"
+            }
+            2 => {
+                self.lsr(addr, accum);
+                "LSR"
+            }
+            3 => {
+                self.ror(addr, accum);
+                "ROR"
+            }
+            4 => {
+                self.stx(addr);
+                "STX"
+            }
+            5 => {
+                self.ldx(addr);
+                "LDX"
+            }
+            6 => {
+                self.dec(addr);
+                "DEC"
+            }
+            7 => {
+                self.inc(addr);
+                "INC"
+            }
             _ => unimplemented!("Unknown aaa code {}", aaa),
-        }
+        };
+        self.trace_set(instr, mode);
     }
 
     fn bit(&mut self, addr: u16) {
@@ -1087,25 +1152,50 @@ impl CPU {
             self.add_cycles(2);
             self.pc = self.pc.wrapping_add(1);
             // Checking for branches
-            match aaa {
+            let instr = match aaa {
                 // BPL
-                0b000 => self.if_clear_flag_branch(CpuFlags::NEGATIVE),
+                0b000 => {
+                    self.if_clear_flag_branch(CpuFlags::NEGATIVE);
+                    "BPL"
+                }
                 // BMI
-                0b001 => self.if_contain_flag_branch(CpuFlags::NEGATIVE),
+                0b001 => {
+                    self.if_contain_flag_branch(CpuFlags::NEGATIVE);
+                    "BMI"
+                }
                 // BVC
-                0b010 => self.if_clear_flag_branch(CpuFlags::OVERFLOW),
+                0b010 => {
+                    self.if_clear_flag_branch(CpuFlags::OVERFLOW);
+                    "BVC"
+                }
                 // BVS
-                0b011 => self.if_contain_flag_branch(CpuFlags::OVERFLOW),
+                0b011 => {
+                    self.if_contain_flag_branch(CpuFlags::OVERFLOW);
+                    "BVS"
+                }
                 // BCC
-                0b100 => self.if_clear_flag_branch(CpuFlags::CARRY),
+                0b100 => {
+                    self.if_clear_flag_branch(CpuFlags::CARRY);
+                    "BCC"
+                }
                 // BCS
-                0b101 => self.if_contain_flag_branch(CpuFlags::CARRY),
+                0b101 => {
+                    self.if_contain_flag_branch(CpuFlags::CARRY);
+                    "BCS"
+                }
                 // BNE
-                0b110 => self.if_clear_flag_branch(CpuFlags::ZERO),
+                0b110 => {
+                    self.if_clear_flag_branch(CpuFlags::ZERO);
+                    "BNE"
+                }
                 // BEQ
-                0b111 => self.if_contain_flag_branch(CpuFlags::ZERO),
+                0b111 => {
+                    self.if_contain_flag_branch(CpuFlags::ZERO);
+                    "BEQ"
+                }
                 _ => unimplemented!("Unknown branch aaa code {}", aaa),
-            }
+            };
+            self.trace_set(instr, AddressingMode::NoneAddressing);
         } else {
             // Group Three Instructions
             println!("group_three: Actually in group 3!");
@@ -1133,15 +1223,34 @@ impl CPU {
                     _ => panic!("{} not implemented for JMP", mode),
                 }
             }
-            match aaa {
-                1 => self.bit(addr),
-                0b010 | 0b011 => self.jmp(addr),
-                4 => self.sty(addr),
-                5 => self.ldy(addr),
-                6 => self.cpy(addr),
-                7 => self.cpx(addr),
+            let instr = match aaa {
+                1 => {
+                    self.bit(addr);
+                    "BIT"
+                }
+                0b010 | 0b011 => {
+                    self.jmp(addr);
+                    "JMP"
+                }
+                4 => {
+                    self.sty(addr);
+                    "STY"
+                }
+                5 => {
+                    self.ldy(addr);
+                    "LDY"
+                }
+                6 => {
+                    self.cpy(addr);
+                    "CPY"
+                }
+                7 => {
+                    self.cpx(addr);
+                    "CPX"
+                }
                 _ => unimplemented!("Unknown aaa code for group three {}", aaa),
-            }
+            };
+            self.trace_set(instr, mode);
         }
     }
 }
