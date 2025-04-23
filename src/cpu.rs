@@ -281,7 +281,32 @@ impl CPU {
             _ => {}
         }
         // PC will end at the last byte of the instruction
+        // If branching is chosen, the new pc value will always be ret nonetheless
         ret
+    }
+
+    fn branch_addr(&mut self, instr_addr: u16) -> u16{
+        let branch_offset = self.mem_read(instr_addr.wrapping_add(1)).wrapping_add(2);
+        instr_addr.wrapping_add(branch_offset as u16)
+    }
+
+    // NOTE Pass in when the PC is on the instruction
+    fn if_contain_flag_addr(&mut self, mode: CpuFlags, instr_addr: u16) -> u16{
+        if self.flags.contains(mode){
+            self.branch_addr(instr_addr)
+        }
+        else{
+            instr_addr.wrapping_add(2)
+        }
+    }
+
+    fn if_clear_flag_addr(&mut self, mode: CpuFlags, instr_addr: u16)-> u16{
+        if !self.flags.contains(mode){
+            self.branch_addr(instr_addr)
+        }
+        else{
+            instr_addr.wrapping_add(2)
+        }
     }
 
     // this fn will take the address of where the instruction is
@@ -372,7 +397,47 @@ impl CPU {
             }
 
             AddressingMode::NoneAddressing => {
-                panic!("mode {:?} is not supported", mode);
+                // NOTE This is only used to get the value of the branch from Branching(Aka use for tracing)
+                // This should not be used for getting the actual address due to cycle concerns
+                // If needing to branch use the branch() function as it also checks for proper cycles
+                let instr = self.mem_read(instr_addr);
+                let ret = match instr {
+ 
+                // BPL
+                0x10 => {
+                    self.if_clear_flag_addr(CpuFlags::NEGATIVE, instr_addr)
+                }
+                // BMI
+                0x30 => {
+                    self.if_contain_flag_addr(CpuFlags::NEGATIVE, instr_addr)
+                }
+                // BVC
+                0x50 => {
+                    self.if_clear_flag_addr(CpuFlags::OVERFLOW, instr_addr)
+                }
+                // BVS
+                0x70 => {
+                    self.if_contain_flag_addr(CpuFlags::OVERFLOW, instr_addr)
+                }
+                // BCC
+                0x90 => {
+                    self.if_clear_flag_addr(CpuFlags::CARRY, instr_addr)
+                }
+                // BCS
+                0xB0 => {
+                    self.if_contain_flag_addr(CpuFlags::CARRY, instr_addr)
+                }
+                // BNE
+                0xD0 => {
+                    self.if_clear_flag_addr(CpuFlags::ZERO, instr_addr)
+                }
+                // BEQ
+                0xF0 => {
+                    self.if_contain_flag_addr(CpuFlags::ZERO, instr_addr)
+                }
+                    _ => 0 // Used as a placeholder if this is hit in tracing
+                };
+                ret
             }
         }
     }
@@ -1067,7 +1132,7 @@ impl CPU {
     }
 
     // This code will read the next item in the pc and set the pc to jump there with + 1 to go to the next instruction
-    fn branch(&mut self) {
+    fn branch(&mut self) -> u16{
         //println!(
         //     "branch: Initalized, starting to branch from pc {:#x}!",
         //     self.pc
@@ -1084,7 +1149,7 @@ impl CPU {
             self.add_cycles(1);
         }
 
-        self.pc = self.pc.wrapping_add(jump as u16);
+        self.pc.wrapping_add(jump as u16)
 
         //println!("Finished branch, pc is now on {:#x}", self.pc);
     }
@@ -1163,49 +1228,26 @@ impl CPU {
             self.add_cycles(2);
             self.pc = self.pc.wrapping_add(1);
             // Checking for branches
-            let instr = match aaa {
-                // BPL
-                0b000 => {
-                    self.if_clear_flag_branch(CpuFlags::NEGATIVE);
-                    "BPL"
-                }
-                // BMI
-                0b001 => {
-                    self.if_contain_flag_branch(CpuFlags::NEGATIVE);
-                    "BMI"
-                }
-                // BVC
-                0b010 => {
-                    self.if_clear_flag_branch(CpuFlags::OVERFLOW);
-                    "BVC"
-                }
-                // BVS
-                0b011 => {
-                    self.if_contain_flag_branch(CpuFlags::OVERFLOW);
-                    "BVS"
-                }
-                // BCC
-                0b100 => {
-                    self.if_clear_flag_branch(CpuFlags::CARRY);
-                    "BCC"
-                }
-                // BCS
-                0b101 => {
-                    self.if_contain_flag_branch(CpuFlags::CARRY);
-                    "BCS"
-                }
-                // BNE
-                0b110 => {
-                    self.if_clear_flag_branch(CpuFlags::ZERO);
-                    "BNE"
-                }
-                // BEQ
-                0b111 => {
-                    self.if_contain_flag_branch(CpuFlags::ZERO);
-                    "BEQ"
-                }
-                _ => unimplemented!("Unknown branch aaa code {}", aaa),
-            };
+ // Checking for branches
+ match aaa {
+     // BPL
+     0b000 => self.if_clear_flag_branch(CpuFlags::NEGATIVE),
+     // BMI
+     0b001 => self.if_contain_flag_branch(CpuFlags::NEGATIVE),
+     // BVC
+     0b010 => self.if_clear_flag_branch(CpuFlags::OVERFLOW),
+     // BVS
+     0b011 => self.if_contain_flag_branch(CpuFlags::OVERFLOW),
+     // BCC
+     0b100 => self.if_clear_flag_branch(CpuFlags::CARRY),
+     // BCS
+     0b101 => self.if_contain_flag_branch(CpuFlags::CARRY),
+     // BNE
+     0b110 => self.if_clear_flag_branch(CpuFlags::ZERO),
+     // BEQ
+     0b111 => self.if_contain_flag_branch(CpuFlags::ZERO),
+     _ => unimplemented!("Unknown branch aaa code {}", aaa),
+ }
         } else {
             // Group Three Instructions
             //println!("group_three: Actually in group 3!");

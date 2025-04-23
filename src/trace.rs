@@ -33,19 +33,14 @@ pub fn trace(cpu: &mut CPU) -> String {
     // Pushing string value for instructinos
     instr_dump.push(op.lit.to_string());
     // Logic needed for determining what items to push
-    let addr: u16 = if !matches!(op.mode, AddressingMode::NoneAddressing){
-        cpu.get_relative_address(&op.mode, pc)
-    }
-    else{
-        0
-    };
+    let addr: u16 =
+        cpu.get_relative_address(&op.mode, pc);
     // Format the address based on what mode it is
     let addr_format: String = match op.mode{
         AddressingMode::Immediate =>
             format!("#${:02X}", cpu.mem_read(addr)),
-        // BUG Zero page formatting requires the = based on what the result of the instruction is?
-        AddressingMode::ZeroPage => format!("${:02X}", cpu.mem_read(addr)),
-        AddressingMode::Absolute => format!("${:04X}", cpu.mem_read(addr)),
+        AddressingMode::ZeroPage => format!("${:02X} = {:02X}", addr, cpu.mem_read(addr)),
+        AddressingMode::Absolute => format!("${:04X}", addr),
         // First number is the address we are looking at
         // Second number is the value fetched
         // Final number is the content of the value fetched
@@ -63,8 +58,11 @@ pub fn trace(cpu: &mut CPU) -> String {
             format!("(${:02X}),Y = {:04X} @ {:04X} = {:02X}", first_val, first_deref, add_val, final_val)
         }
         AddressingMode::NoneAddressing => {
-            // TODO Specific formatting based on instruction
-            "".to_string()
+            if [0x10, 0x30, 0x50, 0x70, 0x90, 0xB0, 0xD0, 0xF0].contains(&instr) {
+                format!("${:4X}", addr)
+            } else {
+                "".to_string()
+            }
         }
         // Accumulator(do nothing)
         _ => {"".to_string()}
