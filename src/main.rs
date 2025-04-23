@@ -4,6 +4,9 @@ pub mod ppu;
 pub mod ppu_reg;
 pub mod rom;
 pub mod trace;
+pub mod op;
+
+
 
 use cpu::*;
 
@@ -84,29 +87,30 @@ fn read_screen_state(cpu: &mut CPU, frame: &mut [u8; 32 * 3 * 32]) -> bool {
 }
 
 fn main() {
-    let sdl_context = sdl2::init().unwrap();
-    let video_subsystem = sdl_context.video().unwrap();
-    let window = video_subsystem
-        .window("Snake game", (32.0 * 10.0) as u32, (32.0 * 10.0) as u32)
-        .position_centered()
-        .build()
-        .unwrap();
+    // let sdl_context = sdl2::init().unwrap();
+    // let video_subsystem = sdl_context.video().unwrap();
+    // let window = video_subsystem
+    //     .window("Snake game", (32.0 * 10.0) as u32, (32.0 * 10.0) as u32)
+    //     .position_centered()
+    //     .build()
+    //     .unwrap();
 
-    let mut canvas = window.into_canvas().present_vsync().build().unwrap();
-    let mut event_pump = sdl_context.event_pump().unwrap();
-    let creator = canvas.texture_creator();
-    let mut texture = creator
-        .create_texture_target(PixelFormatEnum::RGB24, 32, 32)
-        .unwrap();
-    canvas.set_scale(10.0, 10.0).unwrap();
+    // let mut canvas = window.into_canvas().present_vsync().build().unwrap();
+    // let mut event_pump = sdl_context.event_pump().unwrap();
+    // let creator = canvas.texture_creator();
+    // let mut texture = creator
+    //     .create_texture_target(PixelFormatEnum::RGB24, 32, 32)
+    //     .unwrap();
+    // canvas.set_scale(10.0, 10.0).unwrap();
 
+    // Note: Reading from the right file, why is it starting on C004?
     let game_bytes = std::fs::read("nestest.nes").unwrap();
     let rom = Rom::new(&game_bytes).unwrap();
     let bus = Bus::new(rom);
     let mut cpu = CPU::new(bus);
     cpu.reset();
-    let mut screen_state = [0 as u8; 32 * 3 * 32];
-    let mut rng = rand::thread_rng();
+    // let mut screen_state = [0 as u8; 32 * 3 * 32];
+    // let mut rng = rand::thread_rng();
     cpu.run_with_callback(move |cpu| {
         println!("{}", trace(cpu));
     });

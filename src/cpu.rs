@@ -31,12 +31,6 @@ pub struct CPU {
     pub flags: CpuFlags,
     pub bus: Bus,
     pub cycles: u8, // Stores the number of cycles for one instruction, always restarts to 0 at start of run
-
-    // These are meant for testing and used in the trace
-    pub instr: &'static str,  // The appcode equivalent instruction
-    pub len: u8, // The length of the instruction with its addressing(May vary based on instruction length)
-    pub mode: AddressingMode, // What AddressingMode used
-    pub trace_flag: bool, // If true, it indicates an instruction has already been traced, if trying to edit with this flag set to true, returns an error
 }
 
 #[derive(Debug)]
@@ -86,7 +80,7 @@ pub trait Mem {
         // If interrupt request is enabled, stop program exectuion
         // if pos == 0xFFFE && self.flags.contains(CpuFlags::INTERRUPT_DISABLE) {
         //     // BUG Used for irq handler, mitigating for now
-        //     println!("mem_read_u16: Detected break. Reading from IRQ handler...");
+        //     //println!("mem_read_u16: Detected break. Reading from IRQ handler...");
         //     return 0xFFFF;
         // }
         let lo = self.mem_read(pos) as u16;
@@ -101,6 +95,10 @@ pub trait Mem {
         self.mem_write(pos, lo);
         self.mem_write(pos + 1, hi);
     }
+}
+
+pub trait Addressing {
+    
 }
 
 impl Mem for CPU {
@@ -133,36 +131,19 @@ impl CPU {
             bus: bus,
             cycles: 0,
 
-            instr: "",
-            len: 0,
-            mode: AddressingMode::NoneAddressing,
-            trace_flag: false,
         }
     }
 
-    // // Resets RAM from $0000 to $07FF
-    // // If program_start neds to be changed(eg as in snake, we subtract 1)
-    // fn ram_reset(&mut self) {
-    //     for i in 0x0..PROGRAM_START as usize {
-    //         self.memory[i] = 0;
-    //     }
-    // }
-
-    // fn fn_reset(&mut self) {
-    //     for i in PROGRAM_START as usize..0xFFFF {
-    //         self.memory[i] = 0;
-    //     }
-    // }
-
     // Restores registers and initalizes PC to the 2 byte value at 0xFFFC
     pub fn reset(&mut self) {
-        println!("reset: Initalized");
+        //println!("reset: Initalized");
         self.a = 0;
         self.x = 0;
         self.y = 0;
         self.flags = CpuFlags::from_bits_truncate(0b00100100);
         self.sp = STACK_RESET;
-        self.pc = self.mem_read_u16(0xFFFC);
+        self.pc = 0xC000; // TODO Remove on tests
+        // self.pc = self.mem_read_u16(0xFFFC);
     }
 
     // This function adds to cycles. This is to avoid any direct augmentation to the cycles(making it more painful to debug)
@@ -174,41 +155,7 @@ impl CPU {
         self.cycles += val;
     }
 
-    // This can set the default instruction, and the length of the instruction based on the mode
-    // Reduces the number of repeats needed
-    // This errors out
-    fn trace_set(&mut self, instr: &'static str, mode: AddressingMode) {
-        if self.trace_flag {
-            panic!(
-                "An existing instruction exists {}, trying to override with {}",
-                self.instr, instr
-            );
-        }
 
-        self.instr = instr;
-        match mode {
-            AddressingMode::NoneAddressing | AddressingMode::Accumulator => self.len = 1, // POTENTIAL_BUG Accumulator should be 1
-            AddressingMode::Immediate
-            | AddressingMode::ZeroPage
-            | AddressingMode::ZeroPage_X
-            | AddressingMode::ZeroPage_Y
-            | AddressingMode::Indirect_X
-            | AddressingMode::Indirect_Y => self.len = 2,
-
-            AddressingMode::Absolute
-            | AddressingMode::Absolute_X
-            | AddressingMode::Absolute_Y
-            | AddressingMode::Indirect => self.len = 3,
-        }
-        self.trace_flag = true;
-    }
-
-    fn reset_trace(&mut self) {
-        self.instr = "";
-        self.len = 0;
-        self.mode = AddressingMode::NoneAddressing;
-        self.trace_flag = false;
-    }
 
     pub fn load(&mut self, program: Vec<u8>) {
         for i in 0..(program.len() as u16) {
@@ -224,11 +171,11 @@ impl CPU {
     }
 
     pub fn load_and_run(&mut self, program: Vec<u8>) {
-        println!("load_and_run: Initalized");
+        //println!("load_and_run: Initalized");
         self.load(program.clone());
         self.reset();
         // USED FOR TESTING
-        println!("Printing out what's in instructions");
+        //println!("Printing out what's in instructions");
         self.run();
     }
 
@@ -259,31 +206,34 @@ impl CPU {
     where
         F: FnMut(&mut CPU),
     {
-        println!("run: Initalized");
+        //println!("run: Initalized");
+        //println!("starting callback");
+        //println!("finished callback!");
         loop {
-            print_title!("Starting run!");
-            println!("run: Reading values, starting with pc {:#x}", self.pc);
-            println!("run: Flags [NV-BDIZC]: {:08b}", self.flags.bits());
+            callback(self);
+            // print_title!("Starting run!");
+            //println!("run: Reading values, starting with pc {:#x}", self.pc);
+            //println!("run: Flags [NV-BDIZC]: {:08b}", self.flags.bits());
             self.reset_cycles();
             if self.pc == 0xFFFF && self.flags.contains(CpuFlags::INTERRUPT_DISABLE) {
-                println!("run: IRQ detected, most likely from a brk. Stopping execution...");
+                //println!("run: IRQ detected, most likely from a brk. Stopping execution...");
                 break;
             }
             let op = self.mem_read(self.pc);
 
             let highnibble = op >> 4;
             let lownibble = op & 0x0F;
-            println!(
-                "run: Highnibble is {:#x} and lownibble is {:#x}",
-                highnibble, lownibble
-            );
+            //println!(
+            //     "run: Highnibble is {:#x} and lownibble is {:#x}",
+            //     highnibble, lownibble
+            // );
             let aaa = op >> 5;
             let bbb = (op >> 2) & 0x7;
             let cc = op & 0x3; // Used for identification of group 1, 2, and 3
-            println!(
-                "run: aaa is {:03b}, bbb is {:03b}, cc is {:02b}",
-                aaa, bbb, cc
-            );
+            //println!(
+            //     "run: aaa is {:03b}, bbb is {:03b}, cc is {:02b}",
+            //     aaa, bbb, cc
+            // );
             // Top is hard coding remaining instructions
             if op == 0x0 {
                 self.brk();
@@ -312,66 +262,81 @@ impl CPU {
             }
             // Second IRQ check, as self.pc addition occurs after pc is set to 0xFFFF
             if self.pc == 0xFFFF && self.flags.contains(CpuFlags::INTERRUPT_DISABLE) {
-                println!("run: IRQ detected, most likely from a brk. Stopping execution...");
+                //println!("run: IRQ detected, most likely from a brk. Stopping execution...");
                 break;
             }
             // NOTE: Before this runs, PC must be at the instruction before the next command
             self.pc = self.pc.wrapping_add(1);
-            callback(self);
         }
-        print_title!("End of current execution");
+        // print_title!("End of current execution");
     }
 
-    fn get_operand_address(&mut self, mode: &AddressingMode) -> u16 {
-        println!("get_operand_address: Initalized");
+    fn get_operand_address(&mut self, mode: &AddressingMode) -> u16{
+        // PC is currently on the instruction
+        let ret = self.get_relative_address(mode, self.pc);
+        // TODO PC Manipulation here is done here to allow for relative to be done generally
         self.pc = self.pc.wrapping_add(1);
+        match mode{
+            AddressingMode::Absolute | AddressingMode::Absolute_X | AddressingMode::Absolute_Y | AddressingMode::Indirect  => self.pc = self.pc.wrapping_add(1),
+            _ => {}
+        }
+        // PC will end at the last byte of the instruction
+        ret
+    }
+
+    // this fn will take the address of where the instruction is
+    // if passed the program counter, this will not change it
+    // The address passed must be the location where addressing starts(or the next isntruction if immediate is chosen)
+    pub fn get_relative_address(&mut self, mode: &AddressingMode, instr_addr: u16) -> u16 {
+        //println!("get_operand_address: Initalized");
+        let address = instr_addr.wrapping_add(1);
         match mode {
-            AddressingMode::Immediate => self.pc, // No need to add
+            AddressingMode::Immediate => address, // No need to add
 
             AddressingMode::Accumulator => unimplemented!(
                 "get_operand_address: Accumulator addressing are not supported from this function"
             ),
 
-            AddressingMode::ZeroPage => self.mem_read(self.pc) as u16,
+            AddressingMode::ZeroPage => self.mem_read(address) as u16,
 
             AddressingMode::Absolute => {
-                println!("get_operand_address: in absolute mode");
-                let ret = self.mem_read_u16(self.pc);
-                self.pc = self.pc.wrapping_add(1);
+                //println!("get_operand_address: in absolute mode");
+                let ret = self.mem_read_u16(address);
+                // self.pc = self.pc.wrapping_add(1);
                 ret
             }
 
             AddressingMode::ZeroPage_X => {
-                let pos = self.mem_read(self.pc);
+                let pos = self.mem_read(address);
                 let addr = pos.wrapping_add(self.x) as u16;
                 addr
             }
             // (Indirect), Y in NESDev wiki
             AddressingMode::ZeroPage_Y => {
-                let pos = self.mem_read(self.pc);
+                let pos = self.mem_read(address);
                 let addr = pos.wrapping_add(self.y) as u16;
                 addr
             }
 
             AddressingMode::Absolute_X => {
-                println!("get_operand_address: In Absolute_X");
-                let base = self.mem_read_u16(self.pc);
-                self.pc = self.pc.wrapping_add(1);
+                //println!("get_operand_address: In Absolute_X");
+                let base = self.mem_read_u16(address);
+                // self.pc = self.pc.wrapping_add(1);
                 let addr = base.wrapping_add(self.x as u16);
                 addr
             }
             AddressingMode::Absolute_Y => {
-                let base = self.mem_read_u16(self.pc);
+                let base = self.mem_read_u16(address);
                 self.pc = self.pc.wrapping_add(1);
                 let addr = base.wrapping_add(self.y as u16);
                 addr
             }
             // Used for JMP
             AddressingMode::Indirect => {
-                println!("get_operand_address: In Indirect");
+                //println!("get_operand_address: In Indirect");
                 let base = self.mem_read_u16(self.pc);
                 self.pc = self.pc.wrapping_add(1);
-                println!("get_operand_address: Indirect:: base is {:#x}", base);
+                //println!("get_operand_address: Indirect:: base is {:#x}", base);
                 let lo = self.mem_read(base as u16);
                 let read = if base & 0xFF == 0xFF {
                     base & 0xFF00
@@ -381,13 +346,13 @@ impl CPU {
                 let hi = self.mem_read(read);
                 let deref_base = (hi as u16) << 8 | (lo as u16);
 
-                deref_base
+                deref_base // Returns indirect address(does not tell us what is the indirect address to go to)
             }
 
             // (c0, X)
             // Looks at the address at LSB = c0 + X and MSB = c0 + X + 1 => Address LSB + MSB
             AddressingMode::Indirect_X => {
-                println!("get_operand_address: In Indirect_X");
+                //println!("get_operand_address: In Indirect_X");
                 let base = self.mem_read(self.pc);
 
                 let ptr: u8 = (base as u8).wrapping_add(self.x);
@@ -478,7 +443,7 @@ impl CPU {
     fn stack_pop(&mut self) -> u8 {
         self.sp = self.sp.wrapping_add(1);
         let ret = self.mem_read((STACK as u16) + self.sp as u16);
-        println!("stack_pop: popped {}", ret);
+        //println!("stack_pop: popped {}", ret);
         ret
     }
 
@@ -491,12 +456,12 @@ impl CPU {
     // PHP(push processor status) stores a Byte to the stack containing the flags NV11DDIZC and decrements stack pointer
     // Note B Flag is marked as 1 for PHP
     fn php(&mut self) {
-        println!("php: Initialized- PC is {}", self.pc);
+        //println!("php: Initialized- PC is {}", self.pc);
         let mut flags = self.flags.clone();
         flags.insert(CpuFlags::BREAK);
         flags.insert(CpuFlags::BREAK2);
         self.stack_push(flags.bits());
-        println!("php: Finished execution- PC is {}", self.pc);
+        //println!("php: Finished execution- PC is {}", self.pc);
     }
 
     fn plp(&mut self) {
@@ -504,7 +469,7 @@ impl CPU {
     }
 
     fn pha(&mut self) {
-        println!("pha: Initalized");
+        //println!("pha: Initalized");
         self.stack_push(self.a);
         // Due to SB, already added 2
         self.add_cycles(1);
@@ -513,7 +478,7 @@ impl CPU {
     fn pla(&mut self) {
         self.a = self.stack_pop();
         self.zero_negative_flag(self.a);
-        println!("pla: pulled {}", self.a);
+        //println!("pla: pulled {}", self.a);
         self.add_cycles(2);
     }
 
@@ -538,14 +503,14 @@ impl CPU {
     }
 
     fn inx(&mut self) {
-        println!("inx: Initalized(Incrementing x)");
+        //println!("inx: Initalized(Incrementing x)");
         self.x = self.x.wrapping_add(1);
         self.zero_negative_flag(self.x);
     }
 
     // Used for grouping addressing modes
     fn sb_one(&mut self, highnibble: u8) {
-        println!("sb_one: Initalized");
+        //println!("sb_one: Initalized");
         // Single Byte instructions, don't need to read Bytes past the value
         // Eg. PHP, CLC, INX
         // lower nibble of opcode is 0x_8(eg. 0x08...0xF8)
@@ -559,9 +524,9 @@ impl CPU {
             },
             // CLC clears Carry flag
             1 => {
-                println!("clc: Initalized");
+                //println!("clc: Initalized");
                 self.flags.remove(CpuFlags::CARRY);
-                println!("clc: Flags are now {:#b}", self.flags);
+                //println!("clc: Flags are now {:#b}", self.flags);
                 "CLC"
             },
             2 => {
@@ -636,7 +601,6 @@ impl CPU {
             _ => unimplemented!("Unknown high nibble {} for SB1)", highnibble),
         };
         
-        self.trace_set(instr, AddressingMode::NoneAddressing);
     }
 
     fn txa(&mut self) {
@@ -650,7 +614,7 @@ impl CPU {
     }
 
     fn tsx(&mut self) {
-        println!("tsx: Initalized. Stack pointer is {}", self.sp);
+        //println!("tsx: Initalized. Stack pointer is {}", self.sp);
         self.x = self.sp;
         self.zero_negative_flag(self.x);
     }
@@ -662,7 +626,7 @@ impl CPU {
 
     pub fn sb_two(&mut self, highnibble: u8) {
         // Group 2 single byte instructions, lownibble A and high nibble >= 8
-        println!("sb_two: Initalized");
+        //println!("sb_two: Initalized");
         self.add_cycles(2);
         let instr = match highnibble {
             // TXA
@@ -694,7 +658,6 @@ impl CPU {
             15 => unimplemented!("Plx not implemented"),
             _ => unimplemented!("Unknown highnibble {} with low nibble 0xA(SB2)", highnibble),
         };
-        self.trace_set(instr, AddressingMode::NoneAddressing);
     }
 
     // Used to determine addressing mode based on bbb bits
@@ -718,10 +681,10 @@ impl CPU {
     // Takes in the address location
     fn ora(&mut self, addr: u16) {
         let cmp = self.mem_read(addr);
-        println!("ora: a: {:#b} and cmp: {:3b}", self.a, cmp);
+        //println!("ora: a: {:#b} and cmp: {:3b}", self.a, cmp);
         self.a |= cmp;
         self.zero_negative_flag(self.a);
-        println!("ora: Finished!")
+        //println!("ora: Finished!")
     }
 
     fn and(&mut self, addr: u16) {
@@ -735,7 +698,7 @@ impl CPU {
     }
 
     fn add_to_a(&mut self, val: u8) {
-        println!("add_to_a: a is {:#b}, val is {:#b}", self.a, val);
+        //println!("add_to_a: a is {:#b}, val is {:#b}", self.a, val);
         let sum = self.a as u16
             + val as u16
             + if self.flags.contains(CpuFlags::CARRY) {
@@ -751,20 +714,20 @@ impl CPU {
         }
 
         let result = sum as u8; // Truncates as now carry flag is on
-        println!("result: {:#b}, a: {:#b}, val: {:#b}", result, self.a, val);
+        //println!("result: {:#b}, a: {:#b}, val: {:#b}", result, self.a, val);
 
         if ((result ^ self.a) & (result ^ val) & 0x80) != 0 {
             // Signed overflow(or underflow) occured
-            println!("add_to_a: overflow assigned!");
+            //println!("add_to_a: overflow assigned!");
             self.flags.insert(CpuFlags::OVERFLOW);
         } else {
-            println!("add_to_a: overflow removed!");
+            //println!("add_to_a: overflow removed!");
             self.flags.remove(CpuFlags::OVERFLOW);
         }
 
         self.a = result;
         self.zero_negative_flag(self.a);
-        println!("add to a: final result is {}", self.a);
+        //println!("add to a: final result is {}", self.a);
     }
 
     fn adc(&mut self, addr: u16) {
@@ -778,7 +741,7 @@ impl CPU {
         // 2s complements adds 1 at the end, we subtract 1 to just get the not version of memory
         // Clear now doesn't need to be negated as this counters the 1
         let mem = ((val as i8).wrapping_neg().wrapping_sub(1)) as u8;
-        println!("sbc: Old value is {:#b}, reverted value is {:#b}", val, mem);
+        //println!("sbc: Old value is {:#b}, reverted value is {:#b}", val, mem);
         self.add_to_a(mem);
     }
 
@@ -787,7 +750,7 @@ impl CPU {
     }
 
     fn lda(&mut self, addr: u16) {
-        println!("lda: Initalized, reading address {}", addr);
+        //println!("lda: Initalized, reading address {}", addr);
         self.a = self.mem_read(addr);
         self.zero_negative_flag(self.a);
     }
@@ -796,7 +759,7 @@ impl CPU {
     fn compare(&mut self, addr: u16, val: u8) {
         // BUG need to figure out val and mem[addr]
         let addr_val = self.mem_read(addr);
-        println!("compare: val is {:#x}, addr_val is {:#x}", val, addr_val);
+        //println!("compare: val is {:#x}, addr_val is {:#x}", val, addr_val);
         let res = val.wrapping_sub(addr_val) as i8;
 
         if res >= 0 {
@@ -823,9 +786,9 @@ impl CPU {
 
     pub fn group_one(&mut self, aaa: u8, bbb: u8, _cc: u8) {
         // Group 1
-        println!("group_one: Initalized");
+        //println!("group_one: Initalized");
         let mode = self.group_one_bbb(bbb);
-        println!("group_one: Selected mode {}, bbb is {:3b}", mode, bbb);
+        //println!("group_one: Selected mode {}, bbb is {:3b}", mode, bbb);
         let old_addr = self.mem_read_u16(self.pc);
         let addr = self.get_operand_address(&mode); // Memory location of the value to extract
         self.g1_cycles(&mode, old_addr, addr, aaa == 4); // Adds cycles based on addressing mode, if aaa is 4, we're dealing with STA
@@ -864,7 +827,6 @@ impl CPU {
             }
             _ => unimplemented!("aaa"),
         };
-        self.trace_set(instr, mode);
     }
 
     // Group Two Functions
@@ -885,9 +847,9 @@ impl CPU {
     fn asl(&mut self, addr: u16, accum: bool) {
         // Set carry to be bit 7
         let val = if !accum { self.mem_read(addr) } else { self.a };
-        println!("asl: val is {:#b}", val);
+        //println!("asl: val is {:#b}", val);
         let carry_bit = val >> 7;
-        println!("asl: Carry bit is {:#b}", carry_bit);
+        //println!("asl: Carry bit is {:#b}", carry_bit);
         if carry_bit == 1 {
             self.flags.insert(CpuFlags::CARRY);
         } else {
@@ -895,14 +857,14 @@ impl CPU {
         }
         let new_val: u8;
         if !accum {
-            println!("asl: Shifting {:#b}!", val);
+            //println!("asl: Shifting {:#b}!", val);
             new_val = val << 1;
             self.mem_write(addr, new_val);
         } else {
             new_val = self.a << 1;
-            println!("asl: Modifying accumulator, old value is {:#b}", self.a);
+            //println!("asl: Modifying accumulator, old value is {:#b}", self.a);
             self.a = new_val;
-            println!("asl: accumulator new value is {:#b}", self.a);
+            //println!("asl: accumulator new value is {:#b}", self.a);
         }
         self.zero_negative_flag(new_val);
     }
@@ -1050,7 +1012,6 @@ impl CPU {
             }
             _ => unimplemented!("Unknown aaa code {}", aaa),
         };
-        self.trace_set(instr, mode);
     }
 
     fn bit(&mut self, addr: u16) {
@@ -1060,9 +1021,9 @@ impl CPU {
         } else {
             self.flags.remove(CpuFlags::ZERO);
         }
-        println!("bit: val is {:#b}", val);
+        //println!("bit: val is {:#b}", val);
         let overflow = (val >> 6) & 0b01;
-        println!("bit: overflow {:#b}", overflow);
+        //println!("bit: overflow {:#b}", overflow);
         let negative = val >> 7;
         if overflow == 1 {
             self.flags.insert(CpuFlags::OVERFLOW);
@@ -1079,9 +1040,9 @@ impl CPU {
 
     fn jmp(&mut self, addr: u16) {
         // address already has address to jump to
-        println!("jmp: Initalized with address {:#x}", addr);
+        //println!("jmp: Initalized with address {:#x}", addr);
         let val = addr;
-        println!("jmp: val is {:#x}", val);
+        //println!("jmp: val is {:#x}", val);
         // Need to subtract pc by one as it will be added at the end of run
         self.pc = val.wrapping_sub(1);
     }
@@ -1100,21 +1061,21 @@ impl CPU {
     }
 
     fn cpx(&mut self, addr: u16) {
-        println!("cpx: Initalized");
-        println!("x is {}", self.x);
+        //println!("cpx: Initalized");
+        //println!("x is {}", self.x);
         self.compare(addr, self.x);
     }
 
     // This code will read the next item in the pc and set the pc to jump there with + 1 to go to the next instruction
     fn branch(&mut self) {
-        println!(
-            "branch: Initalized, starting to branch from pc {:#x}!",
-            self.pc
-        );
+        //println!(
+        //     "branch: Initalized, starting to branch from pc {:#x}!",
+        //     self.pc
+        // );
         self.add_cycles(1);
         let old_page = self.pc >> 8;
         let jump = self.mem_read(self.pc) as i8;
-        println!("branch: jump is {:x}", jump);
+        //println!("branch: jump is {:x}", jump);
         // NOTE We do not need to add 2 to the pc as at then end of every run cycle will add 1, the other 1 is added since the pc is on the address instead of the instruction
 
         // NOTE For cycles, we add an additional 1 to allow for last pc at the end of run(this does not edit the current pc value)
@@ -1125,11 +1086,11 @@ impl CPU {
 
         self.pc = self.pc.wrapping_add(jump as u16);
 
-        println!("Finished branch, pc is now on {:#x}", self.pc);
+        //println!("Finished branch, pc is now on {:#x}", self.pc);
     }
 
     fn if_contain_flag_branch(&mut self, flag: CpuFlags) {
-        println!("if_contain_flag_branch: Checking flag {:#b}", flag);
+        //println!("if_contain_flag_branch: Checking flag {:#b}", flag);
         if self.flags.contains(flag) {
             self.branch();
         }
@@ -1142,13 +1103,13 @@ impl CPU {
     }
 
     fn brk(&mut self) {
-        println!("brk: Initalized");
-        println!("brk: pc is {}", self.pc);
+        //println!("brk: Initalized");
+        //println!("brk: pc is {}", self.pc);
         self.stack_push_u16(self.pc.wrapping_add(2));
         self.stack_push(self.flags.bits());
         self.flags.insert(CpuFlags::INTERRUPT_DISABLE);
         self.pc = self.mem_read_u16(0xFFFE);
-        println!("brk: Set pc to {}", self.pc);
+        //println!("brk: Set pc to {}", self.pc);
         self.add_cycles(7);
     }
 
@@ -1157,14 +1118,14 @@ impl CPU {
         // Note that self.pc is already on the memory value so we just need to push this part + 1
         // Eg. JSR 0xAA 0xBB, we would be pushing the memory address of 0xBB
         // When rts is called, pc will add 1 automatically so it returns from the next function
-        println!(
-            "jsr: Initalized! The instruction's address is {:#x}",
-            self.pc
-        );
+        //println!(
+        //     "jsr: Initalized! The instruction's address is {:#x}",
+        //     self.pc
+        // );
         self.stack_push_u16(self.pc.wrapping_add(2));
         // Need to subtract one at the end as run() will add one automatically
         let new_pc = self.mem_read_u16(self.pc.wrapping_add(1)).wrapping_sub(1);
-        println!("jsr: Going to new address: {:#x}", new_pc + 1);
+        //println!("jsr: Going to new address: {:#x}", new_pc + 1);
         self.pc = new_pc;
         self.add_cycles(6); // 6 cycles no matter what
     }
@@ -1180,16 +1141,16 @@ impl CPU {
 
     fn rts(&mut self) {
         self.pc = self.stack_pop_u16();
-        println!(
-            "rts: Finished. The pc before finishing run is {:#x}",
-            self.pc
-        );
+        //println!(
+        //     "rts: Finished. The pc before finishing run is {:#x}",
+        //     self.pc
+        // );
         // self.pc does not need to be added as at the end of run, the pc will be added by 1 automatically
         self.add_cycles(6);
     }
 
     fn group_three(&mut self, aaa: u8, bbb: u8, _cc: u8) {
-        println!("group_three: Initalized");
+        //println!("group_three: Initalized");
         if bbb == 0b010 {
             unimplemented!(
                 "group_three: Group Three bbb does not support accumulator! {}",
@@ -1245,23 +1206,22 @@ impl CPU {
                 }
                 _ => unimplemented!("Unknown branch aaa code {}", aaa),
             };
-            self.trace_set(instr, AddressingMode::NoneAddressing);
         } else {
             // Group Three Instructions
-            println!("group_three: Actually in group 3!");
+            //println!("group_three: Actually in group 3!");
             let mut mode = self.group_two_three_bbb(bbb);
             // Hardcoding jmp rel
             if aaa == 0b011 && bbb == 0b011 {
                 // This is jump relative, replace the mode
-                println!("group_three: This is jmp indirect!");
+                //println!("group_three: This is jmp indirect!");
                 mode = AddressingMode::Indirect;
             }
             let old_addr = self.mem_read_u16(self.pc);
             let addr = self.get_operand_address(&mode);
-            println!(
-                "group_three: Deciding what instruction with aaa: {:#b} and address {:#x}",
-                aaa, addr
-            );
+            //println!(
+            //     "group_three: Deciding what instruction with aaa: {:#b} and address {:#x}",
+            //     aaa, addr
+            // );
             // Everything but jmp follows the cycles from group 1
             if aaa != 0b010 | 0b011 {
                 self.g1_cycles(&mode, old_addr, addr, false);
@@ -1300,7 +1260,6 @@ impl CPU {
                 }
                 _ => unimplemented!("Unknown aaa code for group three {}", aaa),
             };
-            self.trace_set(instr, mode);
         }
     }
 }

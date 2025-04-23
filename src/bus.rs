@@ -27,6 +27,7 @@ impl Bus {
             //mirror 16 kb for addressible space
             addr = addr % 0x4000;
         }
+        // println!("chosen addr {:04X} with values {:04X}!", addr, self.prg_rom[addr as usize]);
         self.prg_rom[addr as usize]
     }
 

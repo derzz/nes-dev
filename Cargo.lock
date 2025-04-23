@@ -60,6 +60,7 @@ name = "nes"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.8.0",
+ "lazy_static",
  "rand",
  "sdl2",
 ]

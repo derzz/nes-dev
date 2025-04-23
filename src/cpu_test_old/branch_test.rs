@@ -15,7 +15,7 @@ mod branch_test {
     fn jump(cpu: &mut CPU, op: u8, clear: bool, flag: CpuFlags) {
         cpu.load_and_reset(vec![op, 0x01, 0x00, op::INX]);
         if clear {
-            println!("branch_test: Allocating flags to clear!");
+            // println!("branch_test: Allocating flags to clear!");
             cpu.flags = CpuFlags::from_bits_truncate(0b1111_1111);
             cpu.flags.remove(flag);
         } else {
@@ -30,7 +30,7 @@ mod branch_test {
         cpu.memory[PROGRAM_START - 2] = op::INX;
         cpu.memory[PROGRAM_START - 1] = 0x00;
         if clear {
-            println!("branch_test: Allocating flags to clear!");
+            // println!("branch_test: Allocating flags to clear!");
             cpu.flags = CpuFlags::from_bits_truncate(0b1111_1111);
             cpu.flags.remove(flag);
         } else {

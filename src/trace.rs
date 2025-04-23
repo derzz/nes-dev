@@ -1,22 +1,95 @@
 use crate::cpu::AddressingMode;
 use crate::cpu::Mem;
 use crate::cpu::CPU;
+use crate::op::OpCode;
+use crate::op::CPU_OPCODES;
+use crate::op::OPCODES_MAP;
 use std::collections::HashMap;
+use std::ops::Add;
+
 
 // This will return the current state of the cpu based on its parameters in trace
-pub fn trace(cpu: &CPU) -> String {
-    let code = cpu.instr;
-    let pc = cpu.pc - cpu.cycles as u16; // Artifically pulling to the start of the command(PC is on the )
-    let mode = cpu.mode;
+// THIS WILL NOT TEST THE LAST COLUMN(PPU AND CPU CLOCK CYCLES)
+pub fn trace(cpu: &mut CPU) -> String {
+    // Extract the PC
+    let op_map = &OPCODES_MAP;     
+    let pc = cpu.pc;
+    let instr = cpu.mem_read(pc);
+    let op = op_map.get(&instr).unwrap_or_else(|| panic!("Unknown opcode: {:#04X}", instr));
 
-    let mut hex_dump = vec![];
+    // Current value of the PC
+    let ret_pc = format!("{:04X}", pc);
 
-     let (mem_addr, stored_value) = match mode {
-        AddressingMode::Immediate | AddressingMode::NoneAddressing => (0, 0),
-        _ => {
-            let addr = cpu.get_absolute_address(&ops.mode, begin + 1);
-            (addr, cpu.mem_read(addr))
-        }
+    // Producing the raw hex dump for the instruction and addressing
+    let times = op.len;
+    let mut raw_ar = Vec::new();
+    for n in 0..times {
+        raw_ar.push(format!("{:02X}", cpu.mem_read(pc + n as u16)));
+    }
+    let ret_raw = raw_ar.join(" ");
+
+    // Providing the instruction
+    let mut instr_dump: Vec<String> = Vec::new();
+    // Pushing string value for instructinos
+    instr_dump.push(op.lit.to_string());
+    // Logic needed for determining what items to push
+    let addr: u16 = if !matches!(op.mode, AddressingMode::NoneAddressing){
+        cpu.get_relative_address(&op.mode, pc)
+    }
+    else{
+        0
     };
+    // Format the address based on what mode it is
+    let addr_format: String = match op.mode{
+        AddressingMode::Immediate =>
+            format!("#${:02X}", cpu.mem_read(addr)),
+        // BUG Zero page formatting requires the = based on what the result of the instruction is?
+        AddressingMode::ZeroPage => format!("${:02X}", cpu.mem_read(addr)),
+        AddressingMode::Absolute => format!("${:04X}", cpu.mem_read(addr)),
+        // First number is the address we are looking at
+        // Second number is the value fetched
+        // Final number is the content of the value fetched
+        AddressingMode::ZeroPage_X => format!("${:02X},X @ {:02X} = {:02X}", cpu.mem_read(pc + 1), addr, cpu.mem_read(addr)),
+        AddressingMode::ZeroPage_Y => format!("${:02X},Y @ {:02X} = {:02X}", cpu.mem_read(pc + 1), addr, cpu.mem_read(addr)),
+        AddressingMode::Absolute_X => format!("${:02X},X @ {:02X} = {:02X}", cpu.mem_read(pc + 1), addr, cpu.mem_read(addr)),
+        AddressingMode::Absolute_Y => format!("${:02X},Y @ {:02X} = {:02X}", cpu.mem_read(pc + 1), addr, cpu.mem_read(addr)),
+        AddressingMode::Indirect => format!("({:04X} = {:04X})", cpu.mem_read_u16(pc), addr),
+        AddressingMode::Indirect_X => format!("(${:02X},X) @ {:02X} = {:04X} = {:02X}", cpu.mem_read(pc + 1), cpu.mem_read(pc + 1) + cpu.x, addr, cpu.mem_read(addr)),
+        AddressingMode::Indirect_Y => {
+            let first_val = cpu.mem_read(pc + 1);
+            let first_deref = cpu.mem_read(first_val as u16);
+            let add_val = first_deref + cpu.y;
+            let final_val = cpu.mem_read(add_val as u16);
+            format!("(${:02X}),Y = {:04X} @ {:04X} = {:02X}", first_val, first_deref, add_val, final_val)
+        }
+        AddressingMode::NoneAddressing => {
+            // TODO Specific formatting based on instruction
+            "".to_string()
+        }
+        // Accumulator(do nothing)
+        _ => {"".to_string()}
+        };
+    instr_dump.push(addr_format);
+    let ret_instr = instr_dump.join(" ");
 
+    // Cpu registers
+    // TODO Add access to cycles
+    let ret_reg = format!(
+    "A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X}",
+        cpu.a, cpu.x, cpu.y, cpu.flags.bits(), cpu.sp
+    );
+
+// Format everything with proper spacing
+// Use format width specifiers to align columns
+let trace_line = format!(
+    "{:<6}{:<10}{:<30}{}",
+    ret_pc,        // PC address, left-aligned, 6 chars wide
+    ret_raw,       // Raw bytes, left-aligned, 10 chars wide
+    ret_instr,   // Instruction with operand, left-aligned, 30 chars wide
+    ret_reg  // Register values
+);
+
+trace_line
+    
+    
 }
