@@ -48,6 +48,7 @@ pub enum AddressingMode {
     Indirect_Y,
     NoneAddressing,
     Accumulator, // Retrieves the vlaue of the accumulator
+    Relative // Relative for branches
 }
 
 impl fmt::Display for AddressingMode {
@@ -65,6 +66,7 @@ impl fmt::Display for AddressingMode {
             AddressingMode::NoneAddressing => write!(f, "NoneAddressing"),
             AddressingMode::Accumulator => write!(f, "Accumulator"),
             AddressingMode::Indirect => write!(f, "Indirect"),
+            AddressingMode::Relative => write!(f, "Relative")
         }
     }
 }
@@ -97,9 +99,6 @@ pub trait Mem {
     }
 }
 
-pub trait Addressing {
-    
-}
 
 impl Mem for CPU {
     fn mem_read(&mut self, addr: u16) -> u8 {
@@ -285,29 +284,6 @@ impl CPU {
         ret
     }
 
-    fn branch_addr(&mut self, instr_addr: u16) -> u16{
-        let branch_offset = self.mem_read(instr_addr.wrapping_add(1)).wrapping_add(2);
-        instr_addr.wrapping_add(branch_offset as u16)
-    }
-
-    // NOTE Pass in when the PC is on the instruction
-    fn if_contain_flag_addr(&mut self, mode: CpuFlags, instr_addr: u16) -> u16{
-        if self.flags.contains(mode){
-            self.branch_addr(instr_addr)
-        }
-        else{
-            instr_addr.wrapping_add(2)
-        }
-    }
-
-    fn if_clear_flag_addr(&mut self, mode: CpuFlags, instr_addr: u16)-> u16{
-        if !self.flags.contains(mode){
-            self.branch_addr(instr_addr)
-        }
-        else{
-            instr_addr.wrapping_add(2)
-        }
-    }
 
     // this fn will take the address of where the instruction is
     // if passed the program counter, this will not change it
@@ -397,47 +373,10 @@ impl CPU {
             }
 
             AddressingMode::NoneAddressing => {
-                // NOTE This is only used to get the value of the branch from Branching(Aka use for tracing)
-                // This should not be used for getting the actual address due to cycle concerns
-                // If needing to branch use the branch() function as it also checks for proper cycles
-                let instr = self.mem_read(instr_addr);
-                let ret = match instr {
- 
-                // BPL
-                0x10 => {
-                    self.if_clear_flag_addr(CpuFlags::NEGATIVE, instr_addr)
-                }
-                // BMI
-                0x30 => {
-                    self.if_contain_flag_addr(CpuFlags::NEGATIVE, instr_addr)
-                }
-                // BVC
-                0x50 => {
-                    self.if_clear_flag_addr(CpuFlags::OVERFLOW, instr_addr)
-                }
-                // BVS
-                0x70 => {
-                    self.if_contain_flag_addr(CpuFlags::OVERFLOW, instr_addr)
-                }
-                // BCC
-                0x90 => {
-                    self.if_clear_flag_addr(CpuFlags::CARRY, instr_addr)
-                }
-                // BCS
-                0xB0 => {
-                    self.if_contain_flag_addr(CpuFlags::CARRY, instr_addr)
-                }
-                // BNE
-                0xD0 => {
-                    self.if_clear_flag_addr(CpuFlags::ZERO, instr_addr)
-                }
-                // BEQ
-                0xF0 => {
-                    self.if_contain_flag_addr(CpuFlags::ZERO, instr_addr)
-                }
-                    _ => 0 // Used as a placeholder if this is hit in tracing
-                };
-                ret
+                panic!("mode {:?} is not supported", mode);
+            }
+            AddressingMode::Relative =>{
+                panic!("Relative mode not supported in getting relative address");
             }
         }
     }
@@ -1132,7 +1071,7 @@ impl CPU {
     }
 
     // This code will read the next item in the pc and set the pc to jump there with + 1 to go to the next instruction
-    fn branch(&mut self) -> u16{
+    fn branch(&mut self){
         //println!(
         //     "branch: Initalized, starting to branch from pc {:#x}!",
         //     self.pc
@@ -1149,7 +1088,7 @@ impl CPU {
             self.add_cycles(1);
         }
 
-        self.pc.wrapping_add(jump as u16)
+        self.pc = self.pc.wrapping_add(jump as u16);
 
         //println!("Finished branch, pc is now on {:#x}", self.pc);
     }

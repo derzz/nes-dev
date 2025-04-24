@@ -33,8 +33,12 @@ pub fn trace(cpu: &mut CPU) -> String {
     // Pushing string value for instructinos
     instr_dump.push(op.lit.to_string());
     // Logic needed for determining what items to push
-    let addr: u16 =
-        cpu.get_relative_address(&op.mode, pc);
+    let addr: u16 = if !(matches!(op.mode, AddressingMode::NoneAddressing) ||matches!(op.mode, AddressingMode::Relative)){
+        cpu.get_relative_address(&op.mode, pc)
+    }
+    else{
+        0
+    };
     // Format the address based on what mode it is
     let addr_format: String = match op.mode{
         AddressingMode::Immediate =>
@@ -57,14 +61,13 @@ pub fn trace(cpu: &mut CPU) -> String {
             let final_val = cpu.mem_read(add_val as u16);
             format!("(${:02X}),Y = {:04X} @ {:04X} = {:02X}", first_val, first_deref, add_val, final_val)
         }
-        AddressingMode::NoneAddressing => {
-            if [0x10, 0x30, 0x50, 0x70, 0x90, 0xB0, 0xD0, 0xF0].contains(&instr) {
-                format!("${:4X}", addr)
-            } else {
-                "".to_string()
-            }
+        AddressingMode::Relative => {
+            format!("${:4X}", {
+            let branch_offset = cpu.mem_read(pc.wrapping_add(1)).wrapping_add(2);
+            pc.wrapping_add(branch_offset as u16)
+            })
         }
-        // Accumulator(do nothing)
+        // Accumulator(do nothing) and None Addressing
         _ => {"".to_string()}
         };
     instr_dump.push(addr_format);
