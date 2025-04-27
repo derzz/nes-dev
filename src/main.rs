@@ -7,7 +7,6 @@ pub mod trace;
 pub mod op;
 
 
-
 use cpu::*;
 
 use rom::Rom;
@@ -103,7 +102,12 @@ fn main() {
     //     .unwrap();
     // canvas.set_scale(10.0, 10.0).unwrap();
 
-    // Note: Reading from the right file, why is it starting on C004?
+    // Note: Reading from the right file, why is it starting on C004? 
+    let log_file = std::fs::File::create("debug.log").unwrap();
+    env_logger::Builder::new()
+        .target(env_logger::Target::Pipe(Box::new(log_file)))
+        .filter_level(log::LevelFilter::Debug)
+        .init();
     let game_bytes = std::fs::read("nestest.nes").unwrap();
     let rom = Rom::new(&game_bytes).unwrap();
     let bus = Bus::new(rom);

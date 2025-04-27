@@ -4,6 +4,7 @@ use bitflags::bitflags;
 use core::panic;
 use nes::print_title;
 use std::{fmt, ops::Add};
+use log::{debug, info, warn};
 
 type Byte = u8;
 
@@ -209,10 +210,11 @@ impl CPU {
         //println!("starting callback");
         //println!("finished callback!");
         loop {
+            debug!("start of run the flags are {:#X}", self.flags.bits());
             callback(self);
-            // print_title!("Starting run!");
-            //println!("run: Reading values, starting with pc {:#x}", self.pc);
-            //println!("run: Flags [NV-BDIZC]: {:08b}", self.flags.bits());
+            debug!("finished running callback!");
+            debug!("run: Reading values, starting with pc {:4X}", self.pc);
+            debug!("run: Flags [NV-BDIZC]: {:08b}", self.flags.bits());
             self.reset_cycles();
             if self.pc == 0xFFFF && self.flags.contains(CpuFlags::INTERRUPT_DISABLE) {
                 //println!("run: IRQ detected, most likely from a brk. Stopping execution...");
@@ -266,6 +268,7 @@ impl CPU {
             }
             // NOTE: Before this runs, PC must be at the instruction before the next command
             self.pc = self.pc.wrapping_add(1);
+            debug!("end of run the flags are {:#X}", self.flags.bits());
         }
         // print_title!("End of current execution");
     }
@@ -335,7 +338,7 @@ impl CPU {
             // Used for JMP
             AddressingMode::Indirect => {
                 //println!("get_operand_address: In Indirect");
-                let base = self.mem_read_u16(self.pc);
+                let base = self.mem_read_u16(address);
                 self.pc = self.pc.wrapping_add(1);
                 //println!("get_operand_address: Indirect:: base is {:#x}", base);
                 let lo = self.mem_read(base as u16);
@@ -353,8 +356,8 @@ impl CPU {
             // (c0, X)
             // Looks at the address at LSB = c0 + X and MSB = c0 + X + 1 => Address LSB + MSB
             AddressingMode::Indirect_X => {
-                //println!("get_operand_address: In Indirect_X");
-                let base = self.mem_read(self.pc);
+                debug!("get_operand_address: In Indirect_X");
+                let base = self.mem_read(address);
 
                 let ptr: u8 = (base as u8).wrapping_add(self.x);
                 let lo = self.mem_read(ptr as u16);
@@ -364,9 +367,9 @@ impl CPU {
             //($c0), Y
             // Look at address at LSB = c0 and MSB = C0 + 1 => Address LSB + MSB + Y
             AddressingMode::Indirect_Y => {
-                let base = self.mem_read(self.pc);
+                let base = self.mem_read(address);
                 let lo = self.mem_read(base as u16);
-                let hi = self.mem_read((base as u16).wrapping_add(1) as u16);
+                let hi = self.mem_read((base as u8).wrapping_add(1) as u16); // BUG if base is FF we need to wrap to 00
                 let deref_base = (hi as u16) << 8 | (lo as u16);
                 let deref = deref_base.wrapping_add(self.y as u16);
                 deref
@@ -434,6 +437,7 @@ impl CPU {
 
     fn stack_push(&mut self, data: u8) {
         self.mem_write((STACK as u16) + self.sp as u16, data);
+        debug!("stack_push: pushed {:02X}", data);
         self.sp = self.sp.wrapping_sub(1);
     }
 
@@ -447,7 +451,7 @@ impl CPU {
     fn stack_pop(&mut self) -> u8 {
         self.sp = self.sp.wrapping_add(1);
         let ret = self.mem_read((STACK as u16) + self.sp as u16);
-        //println!("stack_pop: popped {}", ret);
+        debug!("stack_pop: popped {:2X}", ret);
         ret
     }
 
@@ -469,7 +473,16 @@ impl CPU {
     }
 
     fn plp(&mut self) {
+        let brk =  self.flags.contains(CpuFlags::BREAK);
         self.flags = CpuFlags::from_bits_truncate(self.stack_pop());
+        self.flags.insert(CpuFlags::BREAK2); // Always need to push as 1
+        // Set to ignore break flag
+        if brk{
+            self.flags.insert(CpuFlags::BREAK);
+        }
+        else{
+            self.flags.remove(CpuFlags::BREAK);
+        }
     }
 
     fn pha(&mut self) {
@@ -751,6 +764,8 @@ impl CPU {
 
     fn sta(&mut self, addr: u16) {
         self.mem_write(addr, self.a);
+        let checked_value = self.mem_read(addr);
+        debug!("sta wrote {:4X} on address {:4X} with checked value {:4X}", self.a, addr, checked_value);
     }
 
     fn lda(&mut self, addr: u16) {
@@ -763,28 +778,38 @@ impl CPU {
     fn compare(&mut self, addr: u16, val: u8) {
         // BUG need to figure out val and mem[addr]
         let addr_val = self.mem_read(addr);
-        //println!("compare: val is {:#x}, addr_val is {:#x}", val, addr_val);
-        let res = val.wrapping_sub(addr_val) as i8;
-
-        if res >= 0 {
+        debug!("compare: val is {:#x}, addr_val is {:#x}", val, addr_val);
+        
+        let res = val.wrapping_sub(addr_val);
+        debug!("res value is {:#X}", res);
+        if val >= addr_val {
+            debug!("Added carry!");
             self.flags.insert(CpuFlags::CARRY);
         } else {
+            debug!("removed carry!");
             self.flags.remove(CpuFlags::CARRY);
         }
-        if res == 0 {
+        if val == addr_val {
+            debug!("added zero!");
             self.flags.insert(CpuFlags::ZERO);
         } else {
             self.flags.remove(CpuFlags::ZERO);
         }
-        if res < 0 {
-            // Subtraction is negative
+        let neg_test = val.wrapping_sub(addr_val) >> 7;
+
+        if neg_test == 1 {
+            debug!("added negative");
             self.flags.insert(CpuFlags::NEGATIVE);
         } else {
+            debug!("removed negative");
             self.flags.remove(CpuFlags::NEGATIVE);
         }
+
+        debug!("the flags are {:#X}", self.flags.bits());
     }
 
     fn cmp(&mut self, addr: u16) {
+        debug!("a value is {:#x}", self.a);
         self.compare(addr, self.a);
     }
 
@@ -831,6 +856,7 @@ impl CPU {
             }
             _ => unimplemented!("aaa"),
         };
+        debug!("g1 the flags are {:#X}", self.flags.bits());
     }
 
     // Group Two Functions
@@ -1136,7 +1162,11 @@ impl CPU {
 
     fn rti(&mut self) {
         // Most likely coming from a BRK(software IRQ)- BRK is treated as a 2 byte instruction with an unused immediate
-        self.flags = CpuFlags::from_bits_truncate(self.stack_pop());
+        let temp_flag = self.stack_pop();
+        debug!("temp_flag is {:02X}", temp_flag);
+        self.flags = CpuFlags::from_bits_truncate(temp_flag);
+        self.flags.remove(CpuFlags::BREAK);
+        self.flags.insert(CpuFlags::BREAK2);
         self.pc = self.stack_pop_u16();
         // Need to subtract one pc to balance out with the end of run(), which adds one to pc
         self.pc = self.pc.wrapping_sub(1);

@@ -7,6 +7,7 @@ use crate::op::OPCODES_MAP;
 use std::collections::HashMap;
 use std::ops::Add;
 
+use log::{debug, info, warn};
 
 // This will return the current state of the cpu based on its parameters in trace
 // THIS WILL NOT TEST THE LAST COLUMN(PPU AND CPU CLOCK CYCLES)
@@ -33,18 +34,31 @@ pub fn trace(cpu: &mut CPU) -> String {
     // Pushing string value for instructinos
     instr_dump.push(op.lit.to_string());
     // Logic needed for determining what items to push
-    let addr: u16 = if !(matches!(op.mode, AddressingMode::NoneAddressing) ||matches!(op.mode, AddressingMode::Relative)){
-        cpu.get_relative_address(&op.mode, pc)
+    let addr: u16 = if !(matches!(op.mode, AddressingMode::NoneAddressing) ||matches!(op.mode, AddressingMode::Relative) || matches!(op.mode, AddressingMode::Accumulator)){
+        let ret = cpu.get_relative_address(&op.mode, pc);
+        ret
     }
     else{
+        warn!("no trace address needed!");
         0
     };
     // Format the address based on what mode it is
     let addr_format: String = match op.mode{
+        AddressingMode::Accumulator =>
+            "A".to_string(),
         AddressingMode::Immediate =>
             format!("#${:02X}", cpu.mem_read(addr)),
-        AddressingMode::ZeroPage => format!("${:02X} = {:02X}", addr, cpu.mem_read(addr)),
-        AddressingMode::Absolute => format!("${:04X}", addr),
+        AddressingMode::ZeroPage => format!(
+            "${:02X} = {:02X}", addr, cpu.mem_read(addr)
+        ),
+        // TODO Add the hard coded values for STX(what is the content of the previous value)
+        AddressingMode::Absolute => {
+            match op.code{
+                // JMP Absolute
+                0x4C | 0x20 => format!("${:04X}", addr),
+                _ => format!("${:04X} = {:02X}", addr, cpu.mem_read(addr))
+            }
+        },
         // First number is the address we are looking at
         // Second number is the value fetched
         // Final number is the content of the value fetched
@@ -53,13 +67,10 @@ pub fn trace(cpu: &mut CPU) -> String {
         AddressingMode::Absolute_X => format!("${:02X},X @ {:02X} = {:02X}", cpu.mem_read(pc + 1), addr, cpu.mem_read(addr)),
         AddressingMode::Absolute_Y => format!("${:02X},Y @ {:02X} = {:02X}", cpu.mem_read(pc + 1), addr, cpu.mem_read(addr)),
         AddressingMode::Indirect => format!("({:04X} = {:04X})", cpu.mem_read_u16(pc), addr),
-        AddressingMode::Indirect_X => format!("(${:02X},X) @ {:02X} = {:04X} = {:02X}", cpu.mem_read(pc + 1), cpu.mem_read(pc + 1) + cpu.x, addr, cpu.mem_read(addr)),
+        AddressingMode::Indirect_X => format!("(${:02X},X) @ {:02X} = {:04X} = {:02X}", cpu.mem_read(pc + 1), cpu.mem_read(pc + 1).wrapping_add(cpu.x), addr, cpu.mem_read(addr)),
+        // NOTE: Second value is initial dereferenced value
         AddressingMode::Indirect_Y => {
-            let first_val = cpu.mem_read(pc + 1);
-            let first_deref = cpu.mem_read(first_val as u16);
-            let add_val = first_deref + cpu.y;
-            let final_val = cpu.mem_read(add_val as u16);
-            format!("(${:02X}),Y = {:04X} @ {:04X} = {:02X}", first_val, first_deref, add_val, final_val)
+            format!("(${:02X}),Y = {:04X} @ {:04X} = {:02X}", cpu.mem_read(pc + 1), addr.wrapping_sub(cpu.y as u16), addr, cpu.mem_read(addr))
         }
         AddressingMode::Relative => {
             format!("${:4X}", {
@@ -75,6 +86,7 @@ pub fn trace(cpu: &mut CPU) -> String {
 
     // Cpu registers
     // TODO Add access to cycles
+    warn!("the flags are {:#X}", cpu.flags.bits());
     let ret_reg = format!(
     "A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X}",
         cpu.a, cpu.x, cpu.y, cpu.flags.bits(), cpu.sp
@@ -83,7 +95,7 @@ pub fn trace(cpu: &mut CPU) -> String {
 // Format everything with proper spacing
 // Use format width specifiers to align columns
 let trace_line = format!(
-    "{:<6}{:<10}{:<30}{}",
+    "{:<6}{:<10}{:<32}{}",
     ret_pc,        // PC address, left-aligned, 6 chars wide
     ret_raw,       // Raw bytes, left-aligned, 10 chars wide
     ret_instr,   // Instruction with operand, left-aligned, 30 chars wide
