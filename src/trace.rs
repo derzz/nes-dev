@@ -64,9 +64,16 @@ pub fn trace(cpu: &mut CPU) -> String {
         // Final number is the content of the value fetched
         AddressingMode::ZeroPage_X => format!("${:02X},X @ {:02X} = {:02X}", cpu.mem_read(pc + 1), addr, cpu.mem_read(addr)),
         AddressingMode::ZeroPage_Y => format!("${:02X},Y @ {:02X} = {:02X}", cpu.mem_read(pc + 1), addr, cpu.mem_read(addr)),
-        AddressingMode::Absolute_X => format!("${:02X},X @ {:02X} = {:02X}", cpu.mem_read(pc + 1), addr, cpu.mem_read(addr)),
-        AddressingMode::Absolute_Y => format!("${:02X},Y @ {:02X} = {:02X}", cpu.mem_read(pc + 1), addr, cpu.mem_read(addr)),
-        AddressingMode::Indirect => format!("({:04X} = {:04X})", cpu.mem_read_u16(pc), addr),
+        AddressingMode::Absolute_X => format!("${:04X},X @ {:04X} = {:02X}", cpu.mem_read_u16(pc + 1), addr, cpu.mem_read(addr)),
+        // BUG Should be mem_read_u16 not mem_read
+        AddressingMode::Absolute_Y => format!("${:04X},Y @ {:04X} = {:02X}", cpu.mem_read_u16(pc + 1), addr, cpu.mem_read(addr)),
+        AddressingMode::Indirect => {
+            match op.code{
+                // JMP Indirect
+                0x6C => format!("(${:04X}) = {:04X}", cpu.mem_read_u16(pc + 1), addr),
+                _ => format!("({:04X} = {:04X})", cpu.mem_read_u16(pc), addr)
+            }
+        }
         AddressingMode::Indirect_X => format!("(${:02X},X) @ {:02X} = {:04X} = {:02X}", cpu.mem_read(pc + 1), cpu.mem_read(pc + 1).wrapping_add(cpu.x), addr, cpu.mem_read(addr)),
         // NOTE: Second value is initial dereferenced value
         AddressingMode::Indirect_Y => {

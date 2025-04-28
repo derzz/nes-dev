@@ -210,17 +210,18 @@ impl CPU {
         //println!("starting callback");
         //println!("finished callback!");
         loop {
-            debug!("start of run the flags are {:#X}", self.flags.bits());
+            debug!("start of run the flags are {:#X}, pc is currently at {:#X}", self.flags.bits(), self.pc);
             callback(self);
             debug!("finished running callback!");
             debug!("run: Reading values, starting with pc {:4X}", self.pc);
             debug!("run: Flags [NV-BDIZC]: {:08b}", self.flags.bits());
             self.reset_cycles();
             if self.pc == 0xFFFF && self.flags.contains(CpuFlags::INTERRUPT_DISABLE) {
-                //println!("run: IRQ detected, most likely from a brk. Stopping execution...");
+                debug!("run: IRQ detected, most likely from a brk. Stopping execution...");
                 break;
             }
             let op = self.mem_read(self.pc);
+            debug!("op is {:#4X}", op);
 
             let highnibble = op >> 4;
             let lownibble = op & 0x0F;
@@ -255,6 +256,7 @@ impl CPU {
                 self.group_two(aaa, bbb, cc);
             } else if cc == 0b00 {
                 // Conditionals are also included in here
+                debug!("Found group 3 cc = 0b00!");
                 self.group_three(aaa, bbb, cc);
             } else if cc == 0b11 {
                 unimplemented!("cc = 11 is not implemented. This is fulfilled by the 65816 cpu.")
@@ -331,15 +333,15 @@ impl CPU {
             }
             AddressingMode::Absolute_Y => {
                 let base = self.mem_read_u16(address);
-                self.pc = self.pc.wrapping_add(1);
+                // self.pc = self.pc.wrapping_add(1);
                 let addr = base.wrapping_add(self.y as u16);
                 addr
             }
             // Used for JMP
             AddressingMode::Indirect => {
-                //println!("get_operand_address: In Indirect");
+                debug!("get_operand_address: In Indirect");
                 let base = self.mem_read_u16(address);
-                self.pc = self.pc.wrapping_add(1);
+                // self.pc = self.pc.wrapping_add(1);
                 //println!("get_operand_address: Indirect:: base is {:#x}", base);
                 let lo = self.mem_read(base as u16);
                 let read = if base & 0xFF == 0xFF {
@@ -350,7 +352,7 @@ impl CPU {
                 let hi = self.mem_read(read);
                 let deref_base = (hi as u16) << 8 | (lo as u16);
 
-                deref_base // Returns indirect address(does not tell us what is the indirect address to go to)
+                deref_base // Returns indirect address
             }
 
             // (c0, X)
@@ -1070,7 +1072,7 @@ impl CPU {
 
     fn jmp(&mut self, addr: u16) {
         // address already has address to jump to
-        //println!("jmp: Initalized with address {:#x}", addr);
+        debug!("jmp: Initalized with address {:#x}", addr);
         let val = addr;
         //println!("jmp: val is {:#x}", val);
         // Need to subtract pc by one as it will be added at the end of run
@@ -1184,7 +1186,7 @@ impl CPU {
     }
 
     fn group_three(&mut self, aaa: u8, bbb: u8, _cc: u8) {
-        //println!("group_three: Initalized");
+        debug!("group_three: Initalized");
         if bbb == 0b010 {
             unimplemented!(
                 "group_three: Group Three bbb does not support accumulator! {}",
@@ -1219,7 +1221,7 @@ impl CPU {
  }
         } else {
             // Group Three Instructions
-            //println!("group_three: Actually in group 3!");
+            debug!("group_three: Actually in group 3!");
             let mut mode = self.group_two_three_bbb(bbb);
             // Hardcoding jmp rel
             if aaa == 0b011 && bbb == 0b011 {
@@ -1244,33 +1246,28 @@ impl CPU {
                     _ => panic!("{} not implemented for JMP", mode),
                 }
             }
-            let instr = match aaa {
+            match aaa {
                 1 => {
                     self.bit(addr);
-                    "BIT"
                 }
                 0b010 | 0b011 => {
+                    debug!("jumping!");
                     self.jmp(addr);
-                    "JMP"
                 }
                 4 => {
                     self.sty(addr);
-                    "STY"
                 }
                 5 => {
                     self.ldy(addr);
-                    "LDY"
                 }
                 6 => {
                     self.cpy(addr);
-                    "CPY"
                 }
                 7 => {
                     self.cpx(addr);
-                    "CPX"
                 }
                 _ => unimplemented!("Unknown aaa code for group three {}", aaa),
-            };
+            }
         }
     }
 }
