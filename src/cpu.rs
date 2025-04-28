@@ -258,10 +258,47 @@ impl CPU {
                 // Conditionals are also included in here
                 debug!("Found group 3 cc = 0b00!");
                 self.group_three(aaa, bbb, cc);
-            } else if cc == 0b11 {
-                unimplemented!("cc = 11 is not implemented. This is fulfilled by the 65816 cpu.")
             } else {
-                unimplemented!("run: Unknown opcode {:#x}", op)
+                // NOTE Anything passed here is dealing with unofficial opcodes
+                // 0xDA and 0xFA is already implemented in sb_two
+                debug!("In unofficial opcodes with opcode {:4X}", op);
+                match op{
+                    // NOP
+                    0x1A | 0x3A | 0x5A | 0xDA | 0xEA | 0xFA =>{
+                        self.add_cycles(2);
+                    }
+                    // SKB
+                    0x80 | 0x82 | 0x89 | 0xC2 | 0xE2 =>{
+                        self.add_cycles(2);
+                        // Adds 1 to the pc to "read" an immediate byte
+                        self.pc = self.pc.wrapping_add(1);
+                    }
+
+                    // IGN a
+                    0x0c =>{
+                        self.add_cycles(4);
+                        self.pc = self.pc.wrapping_add(2);
+                    }
+
+                    // IGN a, X
+                    // Absolute X addressing, basically follow G1 Cycles calculations
+                    0x1C | 0x3C | 0x5C | 0x7C | 0xDC | 0xFC =>{
+                        let init_addr = self.mem_read_u16(self.pc.wrapping_add(1));
+                        // Adds the needed cycles
+                        self.g1_cycles(&AddressingMode::Absolute_X, init_addr, init_addr.wrapping_add(self.x as u16), false);
+                        self.pc = self.pc.wrapping_add(2)
+                    }
+
+                    // IGN d
+                    
+
+
+                    
+
+                    _ => {
+                        panic!("Unknown opcode(Not implemented) {:4X}", op);
+                    }
+                }
             }
             // Second IRQ check, as self.pc addition occurs after pc is set to 0xFFFF
             if self.pc == 0xFFFF && self.flags.contains(CpuFlags::INTERRUPT_DISABLE) {
@@ -647,34 +684,31 @@ impl CPU {
         // Group 2 single byte instructions, lownibble A and high nibble >= 8
         //println!("sb_two: Initalized");
         self.add_cycles(2);
-        let instr = match highnibble {
+        match highnibble {
             // TXA
             8 => {
                 self.txa();
-                "TXA"
             }
             // TXS
             9 => {
                 self.sp = self.x;
-                "TXS"
             }
             // TAX
             10 => {
                 self.tax();
-                "TAX"
             }
             11 => {
                 self.tsx();
-                "TSX"
             }
             12 => {
                 self.dex();
-                "DEX"
             }
-            13 => unimplemented!("Phx not implemented"),
+            // 0xDA, unofficial NOP
+            13 => return,
             // NOP
             14 => return,
-            15 => unimplemented!("Plx not implemented"),
+            // 0xFA unofficial NOP
+            15 => return,
             _ => unimplemented!("Unknown highnibble {} with low nibble 0xA(SB2)", highnibble),
         };
     }
