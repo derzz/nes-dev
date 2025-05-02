@@ -288,8 +288,124 @@ impl CPU {
                 }
                 // ===== END OF UNOFFICAL NOP =====
                 // ===== COMBINED OPERATIONS =====
-                0x4B => {
+                // ALR #i
+                0x4b =>{
+                    let addr = self.get_operand_address(&AddressingMode::Immediate);
+                    self.and(addr);
+                    self.lsr(addr, false);
+                }
 
+                // ANC #i
+                0x0b => {
+                    let addr = self.get_operand_address(&AddressingMode::Immediate);
+                    self.and(addr);
+                    if self.flags.contains(CpuFlags::NEGATIVE){
+                        self.flags.insert(CpuFlags::CARRY);
+                    }
+                    else{
+                        self.flags.remove(CpuFlags::CARRY);
+                    }
+                }
+
+                // ARR #i
+                0x6b =>{
+                   let addr = self.get_operand_address(&AddressingMode::Immediate);
+                   self.ror(addr, false);
+                   let new_val = self.mem_read(addr);
+                    // Override the carry and overflow bit
+                    let sixth = (new_val >> 5)  & 1;
+                    let fifth = (new_val >> 4) & 1;
+                    if sixth == 1{
+                        self.flags.insert(CpuFlags::CARRY);
+                    }
+                    else{
+                        self.flags.remove(CpuFlags::CARRY);
+                    }
+
+                    if (sixth ^ fifth) == 1{
+                        self.flags.insert(CpuFlags::OVERFLOW);
+                    }
+                    else{
+                        self.flags.remove(CpuFlags::OVERFLOW);
+                    }
+                }
+
+                // AXS #i
+                0xCB => {
+                    let addr = self.get_operand_address(&AddressingMode::Immediate);
+                    let result = (self.x & self.a) as u16;
+                    let sub = result.wrapping_sub(addr);
+
+                    self.x = sub as u8;
+                    if result >= addr{
+                        self.flags.insert(CpuFlags::CARRY);
+                    }
+                    else{
+                        self.flags.remove(CpuFlags::CARRY);
+                    }
+                    self.zero_negative_flag(self.x);
+                }
+
+                // LAX(d, X)
+                0xA3 => {
+                    self.lax(&AddressingMode::Indirect_X);
+                }
+
+                // LAX d
+                0xA7 => {
+                   self.lax(&AddressingMode::ZeroPage);
+                }
+
+                // LAX a
+                0xAF => {
+                    self.lax(&AddressingMode::Absolute);
+                }
+
+                // LAX (d), Y
+                0xB3 =>{
+                    self.lax(&AddressingMode::Indirect_Y);
+                }
+
+                // LAX d, Y
+                0xb7 => {
+                    self.lax(&AddressingMode::ZeroPage_Y);
+                }
+
+                // LAX a,Y
+                0xbf => {
+                    self.lax(&AddressingMode::Absolute_Y);
+                }
+
+                // SAX (d, X)
+                0x83 => {
+                    self.sax(&AddressingMode::Indirect_X);
+                }
+
+                // SAX d
+                0x87 =>{
+                    self.sax(&AddressingMode::ZeroPage);
+
+                }
+
+                // SAX a
+                0x8F =>{
+                    self.sax(&AddressingMode::Absolute);
+                }
+
+                // SAX d, Y
+                0x97 =>{
+                    self.sax(&AddressingMode::ZeroPage_Y);
+                }
+
+                
+
+
+                // ===== END OF COMBINED OPERATIONS =====
+                // ===== DUPLICATED INSTRUCTIONS =====
+                // ADC #i
+                0xEB => {
+                    let addr = self.get_operand_address(&AddressingMode::Immediate);
+                    self.sbc(addr);
                 }
 
                 
@@ -308,7 +424,7 @@ impl CPU {
                         debug!("Found group 3 cc = 0b00!");
                         self.group_three(aaa, bbb, cc);
                     } else {
-                        panic!("Unknown opcode {:2X}", op);
+                        panic!("Cpu: Unknown opcode {:2X}", op);
                     }
                 }
             }
@@ -322,6 +438,18 @@ impl CPU {
             debug!("end of run the flags are {:#X}", self.flags.bits());
         }
         // print_title!("End of current execution");
+    }
+
+    fn lax(&mut self, mode: &AddressingMode){
+        let addr = self.get_operand_address(mode);
+        self.lda(addr);
+        self.ldx(addr);
+    }
+    
+    fn sax(&mut self, mode: &AddressingMode){
+        let addr = self.get_operand_address(mode);;
+        let comb = self.a & self.x;
+        self.mem_write(addr, comb);
     }
 
     fn get_operand_address(&mut self, mode: &AddressingMode) -> u16{

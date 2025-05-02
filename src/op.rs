@@ -275,6 +275,42 @@ OpCode::new(0x74, "*NOP", 2, AddressingMode::ZeroPage_X),
 OpCode::new(0xD4, "*NOP", 2, AddressingMode::ZeroPage_X),
 OpCode::new(0xF4, "*NOP", 2, AddressingMode::ZeroPage_X),
 
+// SHX and SHY
+OpCode::new(0x9E, "SHX", 3, AddressingMode::Absolute_Y), // SHX a, Y
+OpCode::new(0x9C, "SHY", 3, AddressingMode::Absolute_X), // SHY a, X
+
+// ALR/ASR
+OpCode::new(0x4B, "ALR", 2, AddressingMode::Immediate), // ALR #i
+
+// ANC
+OpCode::new(0x0B, "ANC", 2, AddressingMode::Immediate), // ANC #i
+OpCode::new(0x2B, "ANC", 2, AddressingMode::Immediate), // ANC #i
+
+// ARR
+OpCode::new(0x6B, "ARR", 2, AddressingMode::Immediate), // ARR #i
+
+// AXS/SBX
+OpCode::new(0xCB, "AXS", 2, AddressingMode::Immediate), // AXS #i
+
+// LAX
+OpCode::new(0xA3, "*LAX", 2, AddressingMode::Indirect_X), // LAX (d,X)
+OpCode::new(0xA7, "*LAX", 2, AddressingMode::ZeroPage),   // *LAX d
+OpCode::new(0xAF, "*LAX", 3, AddressingMode::Absolute),   // *LAX a
+OpCode::new(0xB3, "*LAX", 2, AddressingMode::Indirect_Y), // *LAX (d),Y
+OpCode::new(0xB7, "*LAX", 2, AddressingMode::ZeroPage_Y), // *LAX d,Y
+OpCode::new(0xBF, "*LAX", 3, AddressingMode::Absolute_Y), // *LAX a,Y
+
+// SAX
+OpCode::new(0x83, "*SAX", 2, AddressingMode::Indirect_X), // *SAX (d,X)
+OpCode::new(0x87, "*SAX", 2, AddressingMode::ZeroPage),   // *SAX d
+OpCode::new(0x8F, "*SAX", 3, AddressingMode::Absolute),   // *SAX a
+OpCode::new(0x97, "*SAX", 2, AddressingMode::ZeroPage_Y), // *SAX d,Y
+
+// SHA
+OpCode::new(0x93, "*SHA", 2, AddressingMode::Indirect_Y), // *SHA (d),Y
+OpCode::new(0x9F, "*SHA", 3, AddressingMode::Absolute_Y), // *SHA a,Y
+
+OpCode::new(0xEB, "*SBC", 2, AddressingMode::Immediate), // *SBC #i (Unofficial SBC immediate)
     ];
 
     pub static ref OPCODES_MAP: HashMap<u8, &'static OpCode> = {

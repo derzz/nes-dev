@@ -16,7 +16,7 @@ pub fn trace(cpu: &mut CPU) -> String {
     let op_map = &OPCODES_MAP;     
     let pc = cpu.pc;
     let instr = cpu.mem_read(pc);
-    let op = op_map.get(&instr).unwrap_or_else(|| panic!("Unknown opcode: {:#04X}", instr));
+    let op = op_map.get(&instr).unwrap_or_else(|| panic!("Trace: Unknown opcode: {:#04X}", instr));
 
     // Current value of the PC
     let ret_pc = format!("{:04X}", pc);
