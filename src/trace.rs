@@ -81,7 +81,7 @@ pub fn trace(cpu: &mut CPU) -> String {
         }
         AddressingMode::Relative => {
             format!("${:4X}", {
-            let branch_offset = cpu.mem_read(pc.wrapping_add(1)).wrapping_add(2);
+            let branch_offset = (cpu.mem_read(pc.wrapping_add(1)) as i8).wrapping_add(2);
             pc.wrapping_add(branch_offset as u16)
             })
         }
@@ -92,20 +92,28 @@ pub fn trace(cpu: &mut CPU) -> String {
     let ret_instr = instr_dump.join(" ");
 
     // Cpu registers
-    // TODO Add access to cycles
     warn!("the flags are {:#X}", cpu.flags.bits());
     let ret_reg = format!(
     "A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X}",
         cpu.a, cpu.x, cpu.y, cpu.flags.bits(), cpu.sp
     );
 
+let (ret_raw_pad, ret_instr_pad) = {
+    if op.lit.len() == 3 {
+        debug!("chose this one!");
+        (format!("{:<10}", ret_raw), format!("{:<32}", ret_instr))
+    } else {
+        (format!("{:<9}", ret_raw), format!("{:<33}", ret_instr))
+    }
+};
+
 // Format everything with proper spacing
 // Use format width specifiers to align columns
 let trace_line = format!(
-    "{:<6}{:<10}{:<32}{}",
+    "{:<6}{}{}{}",
     ret_pc,        // PC address, left-aligned, 6 chars wide
-    ret_raw,       // Raw bytes, left-aligned, 10 chars wide
-    ret_instr,   // Instruction with operand, left-aligned, 30 chars wide
+    ret_raw_pad,       // Raw bytes, left-aligned, 10 chars wide
+    ret_instr_pad,   // Instruction with operand, left-aligned, 30 chars wide
     ret_reg  // Register values
 );
 
