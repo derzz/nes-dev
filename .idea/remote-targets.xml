@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="RemoteTargetsManager">
+    <targets>
+      <target name="WSL - Ubuntu" type="wsl" uuid="24fe53bf-b500-49bf-b56e-ffbba3026287">
+        <config>
+          <option name="distributionMsId" value="Ubuntu" />
+          <option name="projectRootOnTarget" value="{exitCode=0, timeout=false, cancelled=false, stdout=/tmp/tmp.Mm6Cc9Uqdy&#10;, stderr=}/nes" />
+        </config>
+        <ContributedStateBase type="RsLanguageRuntime">
+          <config>
+            <option name="cargoPath" value="/home/linuxbrew/.linuxbrew/bin/cargo" />
+            <option name="cargoVersion" value="1.84.1" />
+            <option name="rustcPath" value="/home/linuxbrew/.linuxbrew/bin/rustc" />
+            <option name="rustcVersion" value="1.84.1 (e71f9a9a9 2025-01-27) (Homebrew)" />
+          </config>
+        </ContributedStateBase>
+      </target>
+    </targets>
+  </component>
+</project>
