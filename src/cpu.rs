@@ -2,9 +2,9 @@ use crate::bus::Bus;
 
 use bitflags::bitflags;
 use core::panic;
+use log::{debug, info, warn};
 use nes::print_title;
 use std::{fmt, ops::Add};
-use log::{debug, info, warn};
 
 type Byte = u8;
 
@@ -49,7 +49,7 @@ pub enum AddressingMode {
     Indirect_Y,
     NoneAddressing,
     Accumulator, // Retrieves the vlaue of the accumulator
-    Relative // Relative for branches
+    Relative,    // Relative for branches
 }
 
 impl fmt::Display for AddressingMode {
@@ -67,7 +67,7 @@ impl fmt::Display for AddressingMode {
             AddressingMode::NoneAddressing => write!(f, "NoneAddressing"),
             AddressingMode::Accumulator => write!(f, "Accumulator"),
             AddressingMode::Indirect => write!(f, "Indirect"),
-            AddressingMode::Relative => write!(f, "Relative")
+            AddressingMode::Relative => write!(f, "Relative"),
         }
     }
 }
@@ -100,7 +100,6 @@ pub trait Mem {
     }
 }
 
-
 impl Mem for CPU {
     fn mem_read(&mut self, addr: u16) -> u8 {
         self.bus.mem_read(addr)
@@ -131,7 +130,6 @@ impl CPU {
             flags: CpuFlags::from_bits_truncate(0b0010_0100),
             bus: bus,
             cycles: 0,
-
         }
     }
 
@@ -144,7 +142,7 @@ impl CPU {
         self.flags = CpuFlags::from_bits_truncate(0b00100100);
         self.sp = STACK_RESET;
         self.pc = 0xC000; // TODO Remove on tests
-        // self.pc = self.mem_read_u16(0xFFFC);
+                          // self.pc = self.mem_read_u16(0xFFFC);
     }
 
     // This function adds to cycles. This is to avoid any direct augmentation to the cycles(making it more painful to debug)
@@ -155,8 +153,6 @@ impl CPU {
     fn add_cycles(&mut self, val: u8) {
         self.cycles += val;
     }
-
-
 
     pub fn load(&mut self, program: Vec<u8>) {
         for i in 0..(program.len() as u16) {
@@ -211,7 +207,11 @@ impl CPU {
         //println!("starting callback");
         //println!("finished callback!");
         loop {
-            debug!("start of run the flags are {:#X}, pc is currently at {:#X}", self.flags.bits(), self.pc);
+            debug!(
+                "start of run the flags are {:#X}, pc is currently at {:#X}",
+                self.flags.bits(),
+                self.pc
+            );
             callback(self);
             debug!("finished running callback!");
             debug!("run: Reading values, starting with pc {:4X}", self.pc);
@@ -234,62 +234,67 @@ impl CPU {
             let aaa = op >> 5;
             let bbb = (op >> 2) & 0x7;
             let cc = op & 0x3; // Used for identification of group 1, 2, and 3
-            //println!(
-            //     "run: aaa is {:03b}, bbb is {:03b}, cc is {:02b}",
-            //     aaa, bbb, cc
-            // );
-            // Top is hard coding remaining instructions
-            match op{
+                               //println!(
+                               //     "run: aaa is {:03b}, bbb is {:03b}, cc is {:02b}",
+                               //     aaa, bbb, cc
+                               // );
+                               // Top is hard coding remaining instructions
+            match op {
                 // Special and illegal opcodes
                 0x0 => {
                     self.brk();
                     return;
-                },
+                }
                 0x20 => self.jsr(),
                 0x40 => self.rti(),
                 0x60 => self.rts(),
                 // NOP
-                0x1A | 0x3A | 0x5A | 0x7A | 0xDA | 0xEA | 0xFA =>{
+                0x1A | 0x3A | 0x5A | 0x7A | 0xDA | 0xEA | 0xFA => {
                     self.add_cycles(2);
                 }
                 // SKB
-                0x80 | 0x82 | 0x89 | 0xC2 | 0xE2 =>{
+                0x80 | 0x82 | 0x89 | 0xC2 | 0xE2 => {
                     self.add_cycles(2);
                     // Adds 1 to the pc to "read" an immediate byte
                     self.pc = self.pc.wrapping_add(1);
                 }
 
                 // IGN a
-                0x0c =>{
+                0x0c => {
                     self.add_cycles(4);
                     self.pc = self.pc.wrapping_add(2);
                 }
 
                 // IGN a, X
                 // Absolute X addressing, basically follow G1 Cycles calculations
-                0x1C | 0x3C | 0x5C | 0x7C | 0xDC | 0xFC =>{
+                0x1C | 0x3C | 0x5C | 0x7C | 0xDC | 0xFC => {
                     let init_addr = self.mem_read_u16(self.pc.wrapping_add(1));
                     // Adds the needed cycles
-                    self.g1_cycles(&AddressingMode::Absolute_X, init_addr, init_addr.wrapping_add(self.x as u16), false);
+                    self.g1_cycles(
+                        &AddressingMode::Absolute_X,
+                        init_addr,
+                        init_addr.wrapping_add(self.x as u16),
+                        false,
+                    );
                     self.pc = self.pc.wrapping_add(2)
                 }
 
                 // IGN d
-                0x04 | 0x44 | 0x64 =>{
+                0x04 | 0x44 | 0x64 => {
                     self.add_cycles(3);
                     self.pc = self.pc.wrapping_add(1);
-                } 
+                }
 
                 // IGN d,X
                 // Since it's still a NOP, we won't be reading the value and just increment the PC
-                0x14 | 0x34 | 0x54 | 0x74 | 0xD4 | 0xF4 =>{
+                0x14 | 0x34 | 0x54 | 0x74 | 0xD4 | 0xF4 => {
                     self.add_cycles(4);
                     self.pc = self.pc.wrapping_add(1)
                 }
                 // ===== END OF UNOFFICAL NOP =====
                 // ===== COMBINED OPERATIONS =====
                 // ALR #i
-                0x4b =>{
+                0x4b => {
                     let addr = self.get_operand_address(&AddressingMode::Immediate);
                     self.and(addr);
                     self.lsr(addr, false);
@@ -299,33 +304,30 @@ impl CPU {
                 0x0b => {
                     let addr = self.get_operand_address(&AddressingMode::Immediate);
                     self.and(addr);
-                    if self.flags.contains(CpuFlags::NEGATIVE){
+                    if self.flags.contains(CpuFlags::NEGATIVE) {
                         self.flags.insert(CpuFlags::CARRY);
-                    }
-                    else{
+                    } else {
                         self.flags.remove(CpuFlags::CARRY);
                     }
                 }
 
                 // ARR #i
-                0x6b =>{
-                   let addr = self.get_operand_address(&AddressingMode::Immediate);
-                   self.ror(addr, false);
-                   let new_val = self.mem_read(addr);
+                0x6b => {
+                    let addr = self.get_operand_address(&AddressingMode::Immediate);
+                    self.ror(addr, false);
+                    let new_val = self.mem_read(addr);
                     // Override the carry and overflow bit
-                    let sixth = (new_val >> 5)  & 1;
+                    let sixth = (new_val >> 5) & 1;
                     let fifth = (new_val >> 4) & 1;
-                    if sixth == 1{
+                    if sixth == 1 {
                         self.flags.insert(CpuFlags::CARRY);
-                    }
-                    else{
+                    } else {
                         self.flags.remove(CpuFlags::CARRY);
                     }
 
-                    if (sixth ^ fifth) == 1{
+                    if (sixth ^ fifth) == 1 {
                         self.flags.insert(CpuFlags::OVERFLOW);
-                    }
-                    else{
+                    } else {
                         self.flags.remove(CpuFlags::OVERFLOW);
                     }
                 }
@@ -337,10 +339,9 @@ impl CPU {
                     let sub = result.wrapping_sub(addr);
 
                     self.x = sub as u8;
-                    if result >= addr{
+                    if result >= addr {
                         self.flags.insert(CpuFlags::CARRY);
-                    }
-                    else{
+                    } else {
                         self.flags.remove(CpuFlags::CARRY);
                     }
                     self.zero_negative_flag(self.x);
@@ -353,7 +354,7 @@ impl CPU {
 
                 // LAX d
                 0xA7 => {
-                   self.lax(&AddressingMode::ZeroPage);
+                    self.lax(&AddressingMode::ZeroPage);
                 }
 
                 // LAX a
@@ -362,7 +363,7 @@ impl CPU {
                 }
 
                 // LAX (d), Y
-                0xB3 =>{
+                0xB3 => {
                     self.lax(&AddressingMode::Indirect_Y);
                 }
 
@@ -382,25 +383,23 @@ impl CPU {
                 }
 
                 // SAX d
-                0x87 =>{
+                0x87 => {
                     self.sax(&AddressingMode::ZeroPage);
-
                 }
 
                 // SAX a
-                0x8F =>{
+                0x8F => {
                     self.sax(&AddressingMode::Absolute);
                 }
 
                 // SAX d, Y
-                0x97 =>{
+                0x97 => {
                     self.sax(&AddressingMode::ZeroPage_Y);
                 }
 
-                
-
-
                 // ===== END OF COMBINED OPERATIONS =====
+                // RMW INSTRUCTIONS follow a pattern with high and low nibbles, will be covered in the if else statements
+
                 // ===== DUPLICATED INSTRUCTIONS =====
                 // ADC #i
                 0xEB => {
@@ -408,13 +407,19 @@ impl CPU {
                     self.sbc(addr);
                 }
 
-                
                 _ => {
                     // Single byte and group territory
                     if lownibble == 0x8 {
                         self.sb_one(highnibble);
                     } else if lownibble == 0xA && highnibble >= 0x8 {
                         self.sb_two(highnibble);
+                        // Combined operations have been covered above
+                    } else if lownibble == 0x3
+                        || lownibble == 0x7
+                        || lownibble == 0xF
+                        || lownibble == 0xB
+                    {
+                        self.rmw(highnibble, lownibble);
                     } else if cc == 0b01 {
                         self.group_one(aaa, bbb, cc);
                     } else if cc == 0b10 {
@@ -440,32 +445,94 @@ impl CPU {
         // print_title!("End of current execution");
     }
 
-    fn lax(&mut self, mode: &AddressingMode){
+    fn rmw(&mut self, high: u8, low: u8) {
+        let part: bool = (high % 2) == 0;
+        let mode = match (part, low) {
+            (true, 0x3) => AddressingMode::Indirect_X,
+            (true, 0x7) => AddressingMode::ZeroPage,
+            (true, 0xF) => AddressingMode::Absolute,
+            (false, 0x3) => AddressingMode::Indirect_Y,
+            (false, 0x7) => AddressingMode::ZeroPage_X,
+            (false, 0xB) => AddressingMode::Absolute_Y,
+            (false, 0xF) => AddressingMode::Absolute_X,
+            _ => panic!("Invalid mode combination: part={part}, low={low}"),
+        };
+        let addr = self.get_operand_address(&mode);
+
+        // Actual logic for different functions
+        match high {
+            0xC | 0xD =>
+                self.dcp(addr),
+            0xE | 0xF =>
+                self.isc(addr),
+            0x2 | 0x3 => self.rla(addr),
+            0x6 | 0x7 => self.rra(addr),
+            0x0 | 0x1 => self.slo(addr),
+            0x4 | 0x5 => self.sre(addr),
+            _ => {
+                panic!("rmw: Unknown high nibble {:X}", high);
+            }
+        }
+    }
+
+    fn dcp(&mut self, addr: u16){
+        self.dec(addr);
+        self.cmp(addr);
+    }
+
+    fn isc(&mut self, addr: u16){
+        self.inc(addr);
+        self.sbc(addr);
+    }
+
+    fn rla(&mut self, addr: u16){
+        self.rol(addr, false);
+        self.and(addr);
+    }
+
+    fn rra(&mut self, addr: u16){
+        self.ror(addr, false);
+        self.adc(addr);
+    }
+
+    fn slo(&mut self, addr: u16){
+        self.asl(addr, false);
+        self.ora(addr);
+    }
+
+    fn sre(&mut self, addr: u16){
+        self.lsr(addr, false);
+        self.eor(addr);
+    }
+
+    fn lax(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         self.lda(addr);
         self.ldx(addr);
     }
-    
-    fn sax(&mut self, mode: &AddressingMode){
-        let addr = self.get_operand_address(mode);;
+
+    fn sax(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
         let comb = self.a & self.x;
         self.mem_write(addr, comb);
     }
 
-    fn get_operand_address(&mut self, mode: &AddressingMode) -> u16{
+    fn get_operand_address(&mut self, mode: &AddressingMode) -> u16 {
         // PC is currently on the instruction
         let ret = self.get_relative_address(mode, self.pc);
         // NOTE PC Manipulation here is done here to allow for relative to be done generally
         self.pc = self.pc.wrapping_add(1);
-        match mode{
-            AddressingMode::Absolute | AddressingMode::Absolute_X | AddressingMode::Absolute_Y | AddressingMode::Indirect  => self.pc = self.pc.wrapping_add(1),
+        match mode {
+            AddressingMode::Absolute
+            | AddressingMode::Absolute_X
+            | AddressingMode::Absolute_Y
+            | AddressingMode::Indirect => self.pc = self.pc.wrapping_add(1),
             _ => {}
         }
         // PC will end at the last byte of the instruction
         // If branching is chosen, the new pc value will always be ret nonetheless
         ret
     }
-
 
     // this fn will take the address of where the instruction is
     // if passed the program counter, this will not change it
@@ -557,7 +624,7 @@ impl CPU {
             AddressingMode::NoneAddressing => {
                 panic!("mode {:?} is not supported", mode);
             }
-            AddressingMode::Relative =>{
+            AddressingMode::Relative => {
                 panic!("Relative mode not supported in getting relative address");
             }
         }
@@ -629,6 +696,10 @@ impl CPU {
 
     fn stack_pop(&mut self) -> u8 {
         self.sp = self.sp.wrapping_add(1);
+        if self.sp > STACK_RESET{
+            debug!("EOF!");
+            std::process::exit(0);
+        }
         let ret = self.mem_read((STACK as u16) + self.sp as u16);
         debug!("stack_pop: popped {:2X}", ret);
         ret
@@ -652,14 +723,13 @@ impl CPU {
     }
 
     fn plp(&mut self) {
-        let brk =  self.flags.contains(CpuFlags::BREAK);
+        let brk = self.flags.contains(CpuFlags::BREAK);
         self.flags = CpuFlags::from_bits_truncate(self.stack_pop());
         self.flags.insert(CpuFlags::BREAK2); // Always need to push as 1
-        // Set to ignore break flag
-        if brk{
+                                             // Set to ignore break flag
+        if brk {
             self.flags.insert(CpuFlags::BREAK);
-        }
-        else{
+        } else {
             self.flags.remove(CpuFlags::BREAK);
         }
     }
@@ -712,76 +782,75 @@ impl CPU {
         // lower nibble of opcode is 0x_8(eg. 0x08...0xF8)
         // Pattern represents (_ _ _ _ 1000)
         self.add_cycles(2);
-        
+
         match highnibble {
             0 => {
                 self.php();
-            },
+            }
             // CLC clears Carry flag
             1 => {
                 //println!("clc: Initalized");
                 self.flags.remove(CpuFlags::CARRY);
                 //println!("clc: Flags are now {:#b}", self.flags);
-            },
+            }
             2 => {
                 self.plp();
-            },
+            }
             // SEC(set carry) sets carry flag to 1
             3 => {
                 self.flags.insert(CpuFlags::CARRY);
-            },
+            }
             // PHA(Push A) stores the value of A to the current stack position
             4 => {
                 self.pha();
-            },
+            }
             // CLI(Clear Interrupt Disable) clears the interrupt disable flag
             5 => {
                 self.flags.remove(CpuFlags::INTERRUPT_DISABLE);
-            },
+            }
             // PLA(Pull A) increments the stack pointer and loads the value at that stack position into A
             6 => {
                 self.pla();
-            },
+            }
             //SEI(Set Interrupt Disable) sets the interrupt disable flag
             7 => {
                 self.flags.insert(CpuFlags::INTERRUPT_DISABLE);
-            },
+            }
             // DEY subtracts 1 from the Y register
             8 => {
                 self.dey();
-            },
+            }
             // TYA transfers the Y register to the accumulator
             9 => {
                 self.tya();
-            },
+            }
             // TAY transfer accumulator to Y register
             10 => {
                 self.tay();
-            },
+            }
             // CLV clears the overflow tag
             11 => {
                 self.flags.remove(CpuFlags::OVERFLOW);
-            },
+            }
             // INY increases the Y register
             12 => {
                 self.iny();
-            },
+            }
             // CLD clears the decimal flag
             13 => {
                 self.flags.remove(CpuFlags::DECIMAL_MODE);
-            },
+            }
             // INX increases the X register
             14 => {
                 self.inx();
-            },
+            }
             // SED sets the decimal flag
             15 => {
                 debug!("accessed SED!");
                 self.flags.insert(CpuFlags::DECIMAL_MODE);
-            },
+            }
             _ => unimplemented!("Unknown high nibble {} for SB1)", highnibble),
         };
-        
     }
 
     fn txa(&mut self) {
@@ -892,7 +961,7 @@ impl CPU {
         }
 
         let result = sum as u8; // Truncates as now carry flag is on
-        //println!("result: {:#b}, a: {:#b}, val: {:#b}", result, self.a, val);
+                                //println!("result: {:#b}, a: {:#b}, val: {:#b}", result, self.a, val);
 
         if ((result ^ self.a) & (result ^ val) & 0x80) != 0 {
             // Signed overflow(or underflow) occured
@@ -926,7 +995,10 @@ impl CPU {
     fn sta(&mut self, addr: u16) {
         self.mem_write(addr, self.a);
         let checked_value = self.mem_read(addr);
-        debug!("sta wrote {:4X} on address {:4X} with checked value {:4X}", self.a, addr, checked_value);
+        debug!(
+            "sta wrote {:4X} on address {:4X} with checked value {:4X}",
+            self.a, addr, checked_value
+        );
     }
 
     fn lda(&mut self, addr: u16) {
@@ -941,7 +1013,7 @@ impl CPU {
         // BUG need to figure out val and mem[addr]
         let addr_val = self.mem_read(addr);
         debug!("compare: val is {:#x}, addr_val is {:#x}", val, addr_val);
-        
+
         let res = val.wrapping_sub(addr_val);
         debug!("res value is {:#X}", res);
         if val >= addr_val {
@@ -1134,7 +1206,10 @@ impl CPU {
     fn stx(&mut self, addr: u16) {
         self.mem_write(addr, self.x);
         let test = self.mem_read(addr);
-        debug!("wrote value {:4X} into {:4X}, checked value is {:4X}", self.x, addr, test);
+        debug!(
+            "wrote value {:4X} into {:4X}, checked value is {:4X}",
+            self.x, addr, test
+        );
     }
 
     fn ldx(&mut self, addr: u16) {
@@ -1159,11 +1234,11 @@ impl CPU {
 
     fn group_two(&mut self, aaa: u8, bbb: u8, _cc: u8, op: u8) {
         let mode = {
-            match op{
+            match op {
                 // LDX is special
-                0xB6 | 0x96=> AddressingMode::ZeroPage_Y,
+                0xB6 | 0x96 => AddressingMode::ZeroPage_Y,
                 0xBE => AddressingMode::Absolute_Y,
-                _ => self.group_two_three_bbb(bbb)
+                _ => self.group_two_three_bbb(bbb),
             }
         };
         let accum = matches!(mode, AddressingMode::Accumulator);
@@ -1261,7 +1336,7 @@ impl CPU {
     }
 
     // This code will read the next item in the pc and set the pc to jump there with + 1 to go to the next instruction
-    fn branch(&mut self){
+    fn branch(&mut self) {
         //println!(
         //     "branch: Initalized, starting to branch from pc {:#x}!",
         //     self.pc
@@ -1361,26 +1436,26 @@ impl CPU {
             self.add_cycles(2);
             self.pc = self.pc.wrapping_add(1);
             // Checking for branches
- // Checking for branches
- match aaa {
-     // BPL
-     0b000 => self.if_clear_flag_branch(CpuFlags::NEGATIVE),
-     // BMI
-     0b001 => self.if_contain_flag_branch(CpuFlags::NEGATIVE),
-     // BVC
-     0b010 => self.if_clear_flag_branch(CpuFlags::OVERFLOW),
-     // BVS
-     0b011 => self.if_contain_flag_branch(CpuFlags::OVERFLOW),
-     // BCC
-     0b100 => self.if_clear_flag_branch(CpuFlags::CARRY),
-     // BCS
-     0b101 => self.if_contain_flag_branch(CpuFlags::CARRY),
-     // BNE
-     0b110 => self.if_clear_flag_branch(CpuFlags::ZERO),
-     // BEQ
-     0b111 => self.if_contain_flag_branch(CpuFlags::ZERO),
-     _ => unimplemented!("Unknown branch aaa code {}", aaa),
- }
+            // Checking for branches
+            match aaa {
+                // BPL
+                0b000 => self.if_clear_flag_branch(CpuFlags::NEGATIVE),
+                // BMI
+                0b001 => self.if_contain_flag_branch(CpuFlags::NEGATIVE),
+                // BVC
+                0b010 => self.if_clear_flag_branch(CpuFlags::OVERFLOW),
+                // BVS
+                0b011 => self.if_contain_flag_branch(CpuFlags::OVERFLOW),
+                // BCC
+                0b100 => self.if_clear_flag_branch(CpuFlags::CARRY),
+                // BCS
+                0b101 => self.if_contain_flag_branch(CpuFlags::CARRY),
+                // BNE
+                0b110 => self.if_clear_flag_branch(CpuFlags::ZERO),
+                // BEQ
+                0b111 => self.if_contain_flag_branch(CpuFlags::ZERO),
+                _ => unimplemented!("Unknown branch aaa code {}", aaa),
+            }
         } else {
             // Group Three Instructions
             debug!("group_three: Actually in group 3!");
@@ -1428,7 +1503,12 @@ impl CPU {
                 7 => {
                     self.cpx(addr);
                 }
-                _ => unimplemented!("Unknown  code for group three {:#3b}{:#3b}{:#2b}", aaa, bbb, cc),
+                _ => unimplemented!(
+                    "Unknown  code for group three {:#3b}{:#3b}{:#2b}",
+                    aaa,
+                    bbb,
+                    cc
+                ),
             }
         }
     }

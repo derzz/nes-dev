@@ -1,11 +1,10 @@
 pub mod bus;
 pub mod cpu;
+pub mod op;
 pub mod ppu;
 pub mod ppu_reg;
 pub mod rom;
 pub mod trace;
-pub mod op;
-
 
 use cpu::*;
 
@@ -102,7 +101,7 @@ fn main() {
     //     .unwrap();
     // canvas.set_scale(10.0, 10.0).unwrap();
 
-    // Note: Reading from the right file, why is it starting on C004? 
+    // Note: Reading from the right file, why is it starting on C004?
     let log_file = std::fs::File::create("debug.log").unwrap();
     env_logger::Builder::new()
         .target(env_logger::Target::Pipe(Box::new(log_file)))
