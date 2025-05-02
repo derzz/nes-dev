@@ -6,9 +6,10 @@ use crate::rom::Rom;
 
 pub struct Bus {
     cpu_vram: [u8; 2048],
+    apu_vram: [u8; 24],
     prg_rom: Vec<u8>,
     ppu: PPU,
-    cycles: usize
+    cycles: usize,
 }
 
 impl Bus {
@@ -16,6 +17,7 @@ impl Bus {
         let ppu = PPU::new(rom.chr_rom, rom.screen_mirroring);
         Bus {
             cpu_vram: [0; 2048],
+            apu_vram: [0xFF; 24],
             prg_rom: rom.prg_rom,
             ppu: ppu,
             cycles: 0,
@@ -27,11 +29,12 @@ impl Bus {
             //mirror 16 kb for addressible space
             addr = addr % 0x4000;
         }
+        // println!("chosen addr {:04X} with values {:04X}!", addr, self.prg_rom[addr as usize]);
         self.prg_rom[addr as usize]
     }
 
     // Counting ticks
-    pub fn tick(&mut self, cycles: u8){
+    pub fn tick(&mut self, cycles: u8) {
         self.cycles += cycles as usize;
         self.ppu.tick(cycles * 3); //PPU Cycles are 3 times faster than CPU clock cycles
     }
@@ -64,9 +67,14 @@ impl Mem for Bus {
                 let mirror_down_addr = addr & 0x2007;
                 self.mem_read(mirror_down_addr)
             }
+            // TODO Need to change these functinoalities for audio, joypad, DMA functionality(These are put as 0xFF for initial testing sake)
+            0x4000..0x4017 =>{
+                let idx = addr - 0x4000;
+                self.apu_vram[idx as usize]
+            }
             PROGRAM_RAM..=PROGRAM_RAM_END => self.read_prg_rom(addr),
             _ => {
-                println!("Ignoring mem access at {}", addr);
+                println!("Ignoring mem access at 0x{:4X}", addr);
                 0
             }
         }
@@ -104,6 +112,11 @@ impl Mem for Bus {
             }
             PROGRAM_RAM..=PROGRAM_RAM_END => {
                 panic!("Attempt to write to program RAM space!");
+            }
+            // TODO Need to change these functinoalities for audio, joypad, DMA functionality(These are put as 0xFF for initial testing sake)
+            0x4000..0x4017 =>{
+                let idx = addr - 0x4000;
+                self.apu_vram[idx as usize] = data;
             }
             _ => {
                 println!("Ignoring mem write-access at {}", addr);

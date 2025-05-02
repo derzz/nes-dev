@@ -1,0 +1,123 @@
+warning: unused import: `nes::print_title`
+ --> src/cpu.rs:5:5
+  |
+5 | use nes::print_title;
+  |     ^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `ops::Add`
+ --> src/cpu.rs:6:16
+  |
+6 | use std::{fmt, ops::Add};
+  |                ^^^^^^^^
+
+warning: unused imports: `info` and `warn`
+ --> src/cpu.rs:7:18
+  |
+7 | use log::{debug, info, warn};
+  |                  ^^^^  ^^^^
+
+warning: unused import: `crate::op::OpCode`
+ --> src/trace.rs:4:5
+  |
+4 | use crate::op::OpCode;
+  |     ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::op::CPU_OPCODES`
+ --> src/trace.rs:5:5
+  |
+5 | use crate::op::CPU_OPCODES;
+  |     ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::collections::HashMap`
+ --> src/trace.rs:7:5
+  |
+7 | use std::collections::HashMap;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::ops::Add`
+ --> src/trace.rs:8:5
+  |
+8 | use std::ops::Add;
+  |     ^^^^^^^^^^^^^
+
+warning: unused imports: `debug` and `info`
+  --> src/trace.rs:10:11
+   |
+10 | use log::{debug, info, warn};
+   |           ^^^^^  ^^^^
+
+warning: unused import: `sdl2::pixels::PixelFormatEnum`
+  --> src/main.rs:16:5
+   |
+16 | use sdl2::pixels::PixelFormatEnum;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused variable: `instr`
+   --> src/cpu.rs:536:13
+    |
+536 |         let instr = match highnibble {
+    |             ^^^^^ help: if this is intentional, prefix it with an underscore: `_instr`
+    |
+    = note: `#[warn(unused_variables)]` on by default
+
+warning: unused variable: `instr`
+   --> src/cpu.rs:647:13
+    |
+647 |         let instr = match highnibble {
+    |             ^^^^^ help: if this is intentional, prefix it with an underscore: `_instr`
+
+warning: unused variable: `instr`
+   --> src/cpu.rs:821:13
+    |
+821 |         let instr = match aaa {
+    |             ^^^^^ help: if this is intentional, prefix it with an underscore: `_instr`
+
+warning: unused variable: `instr`
+    --> src/cpu.rs:1007:13
+     |
+1007 |         let instr = match aaa {
+     |             ^^^^^ help: if this is intentional, prefix it with an underscore: `_instr`
+
+warning: unused variable: `instr`
+    --> src/cpu.rs:1240:17
+     |
+1240 |             let instr = match aaa {
+     |                 ^^^^^ help: if this is intentional, prefix it with an underscore: `_instr`
+
+warning: function `handle_user_input` is never used
+  --> src/main.rs:22:4
+   |
+22 | fn handle_user_input(cpu: &mut CPU, event_pump: &mut EventPump) {
+   |    ^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` on by default
+
+warning: function `color` is never used
+  --> src/main.rs:58:4
+   |
+58 | fn color(byte: u8) -> Color {
+   |    ^^^^^
+
+warning: function `read_screen_state` is never used
+  --> src/main.rs:71:4
+   |
+71 | fn read_screen_state(cpu: &mut CPU, frame: &mut [u8; 32 * 3 * 32]) -> bool {
+   |    ^^^^^^^^^^^^^^^^^
+
+warning: method `write_oam_dma` is never used
+   --> src/ppu.rs:190:8
+    |
+26  | impl PPU {
+    | -------- method in this implementation
+...
+190 |     fn write_oam_dma(&mut self, data: &[u8; 256]) {
+    |        ^^^^^^^^^^^^^
+
+warning: `nes` (bin "nes") generated 18 warnings (run `cargo fix --bin "nes"` to apply 9 suggestions)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
+     Running `target/debug/nes`
+thread 'main' panicked at src/cpu.rs:300:44:
+not implemented: get_operand_address: Accumulator addressing are not supported from this function
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
