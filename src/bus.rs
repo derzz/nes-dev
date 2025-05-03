@@ -40,6 +40,9 @@ impl Bus {
     }
 
     // Polling for NMI Interrupt
+    pub fn poll_nmi_status(&mut self) -> Option<u8> {
+        self.ppu.nmi_interrupt.take()
+    }
     
 }
 

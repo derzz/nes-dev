@@ -21,6 +21,8 @@ pub struct PPU {
 
     pub scanline: u16, // Which scanline should be drawn
     pub cycles: usize, // Location of current cycle
+
+    pub nmi_interrupt: Option<u8>
 }
 
 impl PPU {
@@ -44,6 +46,7 @@ impl PPU {
             mirroring: mirroring,
             scanline: 0,
             cycles: 21, // PPU starts with 3 times the cycles of CPU(which is 7)
+            nmi_interrupt: None
         }
     }
 
@@ -73,9 +76,13 @@ impl PPU {
     }
 
     // 0x2000 write, PPUCTRL(Flags)
-    pub fn write_to_ctrl(&mut self, val: u8) {
-        // Val should represent the bit flags of the control registers
-        self.ctrl.update(val);
+    // If PPU is in VBlank state and Generate NMI bit in control register is updated from 0 to 1
+    pub fn write_to_ctrl(&mut self, value: u8) {
+        let before_nmi_status = self.ctrl.generate_vblank_nmi();
+        self.ctrl.update(value);
+        if !before_nmi_status && self.ctrl.generate_vblank_nmi() && self.status.is_in_vblank() {
+            self.nmi_interrupt = Some(1);
+        }
     }
 
     // 0x2001 write, PPUMASK
@@ -140,6 +147,7 @@ impl PPU {
 
         self.increment_vram_addr();
     }
+
 
     fn increment_vram_addr(&mut self) {
         self.addr.increment(self.ctrl.vram_addr_increment());

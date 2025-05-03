@@ -39,6 +39,10 @@ impl StatusRegister {
         }
     }
 
+    pub fn is_in_vblank(&mut self) -> bool{
+        self.contains(StatusRegister::VBLANK)
+    }
+
     pub fn reset_vblank_status(&mut self) {
         self.remove(StatusRegister::VBLANK);
     }

@@ -200,15 +200,38 @@ impl CPU {
         }
     }
 
+
+    // If nmi interrupt is encountered
+    
+    fn interrupt_nmi(&mut self){
+        self.stack_push_u16(self.pc); // Push PC and Status flag on stack
+        let mut flag = self.flags.clone();
+        flag.set(CpuFlags::BREAK, false);
+        flag.set(CpuFlags::BREAK2, true);
+
+        self.stack_push(flag.bits());
+        self.flags.insert(CpuFlags::INTERRUPT_DISABLE);
+
+        self.bus.tick(2);
+        self.pc = self.mem_read_u16(0xFFFA);
+    }
+
     pub fn run(&mut self) {
         self.run_with_callback(|_| {});
     }
+
+    
 
     pub fn run_with_callback<F>(&mut self, mut callback: F)
     where
         F: FnMut(&mut CPU),
     {
+
         loop {
+            if let Some(_nmi) = self.bus.poll_nmi_status(){
+                self.interrupt_nmi();
+            }
+
             if self.halted{
                 debug!("Got EOF signal! Exiting program...");
                 break;
