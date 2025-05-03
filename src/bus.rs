@@ -68,7 +68,7 @@ impl Mem for Bus {
                 self.mem_read(mirror_down_addr)
             }
             // TODO Need to change these functinoalities for audio, joypad, DMA functionality(These are put as 0xFF for initial testing sake)
-            0x4000..0x4017 =>{
+            0x4000..0x4017 => {
                 let idx = addr - 0x4000;
                 self.apu_vram[idx as usize]
             }
@@ -114,7 +114,7 @@ impl Mem for Bus {
                 panic!("Attempt to write to program RAM space!");
             }
             // TODO Need to change these functinoalities for audio, joypad, DMA functionality(These are put as 0xFF for initial testing sake)
-            0x4000..0x4017 =>{
+            0x4000..0x4017 => {
                 let idx = addr - 0x4000;
                 self.apu_vram[idx as usize] = data;
             }

@@ -152,7 +152,10 @@ impl CPU {
 
     fn add_cycles(&mut self, val: u8) {
         self.cycles += val;
-        debug!("Adding {} cycles, total for this instruction is {}", val, self.cycles);
+        debug!(
+            "Adding {} cycles, total for this instruction is {}",
+            val, self.cycles
+        );
     }
 
     pub fn load(&mut self, program: Vec<u8>) {
@@ -369,6 +372,10 @@ impl CPU {
                 0xB3 => {
                     // BUG need to consider page skip
                     self.add_cycles(5);
+                    let new_address =
+                        self.get_relative_address(&AddressingMode::Indirect_Y, self.pc);
+                    let old_address = new_address.wrapping_sub(self.y as u16);
+                    self.check_page_cross(old_address, new_address, false);
                     self.lax(&AddressingMode::Indirect_Y);
                 }
 
@@ -416,6 +423,7 @@ impl CPU {
                 // ADC #i
                 0xEB => {
                     let addr = self.get_operand_address(&AddressingMode::Immediate);
+                    self.add_cycles(2);
                     self.sbc(addr);
                 }
 
@@ -466,23 +474,42 @@ impl CPU {
     fn rmw(&mut self, high: u8, low: u8) {
         let part: bool = (high % 2) == 0;
         let mode = match (part, low) {
-            (true, 0x3) => AddressingMode::Indirect_X,
-            (true, 0x7) => AddressingMode::ZeroPage,
-            (true, 0xF) => AddressingMode::Absolute,
-            (false, 0x3) => AddressingMode::Indirect_Y,
-            (false, 0x7) => AddressingMode::ZeroPage_X,
-            (false, 0xB) => AddressingMode::Absolute_Y,
-            (false, 0xF) => AddressingMode::Absolute_X,
+            (true, 0x3) => {
+                self.add_cycles(8);
+                AddressingMode::Indirect_X
+            }
+            (true, 0x7) => {
+                self.add_cycles(5);
+                AddressingMode::ZeroPage
+            }
+            (true, 0xF) => {
+                self.add_cycles(6);
+                AddressingMode::Absolute
+            }
+            (false, 0x3) => {
+                self.add_cycles(8);
+                AddressingMode::Indirect_Y
+            }
+            (false, 0x7) => {
+                self.add_cycles(6);
+                AddressingMode::ZeroPage_X
+            }
+            (false, 0xB) => {
+                self.add_cycles(7);
+                AddressingMode::Absolute_Y
+            }
+            (false, 0xF) => {
+                self.add_cycles(7);
+                AddressingMode::Absolute_X
+            }
             _ => panic!("Invalid mode combination: part={part}, low={low}"),
         };
         let addr = self.get_operand_address(&mode);
 
         // Actual logic for different functions
         match high {
-            0xC | 0xD =>
-                self.dcp(addr),
-            0xE | 0xF =>
-                self.isc(addr),
+            0xC | 0xD => self.dcp(addr),
+            0xE | 0xF => self.isc(addr),
             0x2 | 0x3 => self.rla(addr),
             0x6 | 0x7 => self.rra(addr),
             0x0 | 0x1 => self.slo(addr),
@@ -493,32 +520,32 @@ impl CPU {
         }
     }
 
-    fn dcp(&mut self, addr: u16){
+    fn dcp(&mut self, addr: u16) {
         self.dec(addr);
         self.cmp(addr);
     }
 
-    fn isc(&mut self, addr: u16){
+    fn isc(&mut self, addr: u16) {
         self.inc(addr);
         self.sbc(addr);
     }
 
-    fn rla(&mut self, addr: u16){
+    fn rla(&mut self, addr: u16) {
         self.rol(addr, false);
         self.and(addr);
     }
 
-    fn rra(&mut self, addr: u16){
+    fn rra(&mut self, addr: u16) {
         self.ror(addr, false);
         self.adc(addr);
     }
 
-    fn slo(&mut self, addr: u16){
+    fn slo(&mut self, addr: u16) {
         self.asl(addr, false);
         self.ora(addr);
     }
 
-    fn sre(&mut self, addr: u16){
+    fn sre(&mut self, addr: u16) {
         self.lsr(addr, false);
         self.eor(addr);
     }
@@ -650,18 +677,16 @@ impl CPU {
 
     fn check_page_cross(&mut self, base_addr: u16, final_addr: u16, is_sta: bool) {
         if (base_addr >> 8) != (final_addr >> 8) || is_sta {
-            debug!("Page cross detected: base_addr is {:4X} and final_addr is {:4X}", base_addr, final_addr);
+            debug!(
+                "Page cross detected: base_addr is {:4X} and final_addr is {:4X}",
+                base_addr, final_addr
+            );
             self.add_cycles(1);
         }
     }
     // Note cycles have been initiated to 2, these calculations are filling up the remaining cycles
     // STX LDX STY LDY works in here
-    fn g1_cycles(
-        &mut self,
-        mode: &AddressingMode,
-        new_address: u16,
-        is_sta: bool,
-    ) {
+    fn g1_cycles(&mut self, mode: &AddressingMode, new_address: u16, is_sta: bool) {
         match mode {
             AddressingMode::Immediate => self.add_cycles(2),
             AddressingMode::ZeroPage => self.add_cycles(3),
@@ -718,7 +743,7 @@ impl CPU {
 
     fn stack_pop(&mut self) -> u8 {
         self.sp = self.sp.wrapping_add(1);
-        if self.sp > STACK_RESET{
+        if self.sp > STACK_RESET {
             debug!("EOF!");
             std::process::exit(0);
         }
@@ -742,7 +767,7 @@ impl CPU {
         flags.insert(CpuFlags::BREAK2);
         self.stack_push(flags.bits());
         self.add_cycles(1); // Added 2 already due to SB
-        //println!("php: Finished execution- PC is {}", self.pc);
+                            //println!("php: Finished execution- PC is {}", self.pc);
     }
 
     fn plp(&mut self) {
@@ -922,11 +947,7 @@ impl CPU {
                 self.dex();
             }
             // 0xDA, unofficial NOP
-            13 => return,
-            // NOP
-            14 => return,
-            // 0xFA unofficial NOP
-            15 => return,
+            13 | 14 | 15 => return,
             _ => unimplemented!("Unknown highnibble {} with low nibble 0xA(SB2)", highnibble),
         };
     }
@@ -1275,7 +1296,7 @@ impl CPU {
         // Adding cycles
         match aaa {
             4 | 5 => self.g1_cycles(&mode, addr, false), // stx and ldx works separately
-            _ => self.g2_default_cycles(&mode), // Rest of g2 cycles can go here instead
+            _ => self.g2_default_cycles(&mode),          // Rest of g2 cycles can go here instead
         }
 
         match aaa {
@@ -1366,19 +1387,19 @@ impl CPU {
         //     self.pc
         // );
         self.add_cycles(1); // Branch taken
-        let old_page = self.pc >> 8;
+        let old_page = self.pc.wrapping_add(1) >> 8; // Relative to the start of the NEXT instruction!
         let jump = self.mem_read(self.pc) as i8;
         //println!("branch: jump is {:x}", jump);
         // NOTE We do not need to add 2 to the pc as at then end of every run cycle will add 1, the other 1 is added since the pc is on the address instead of the instruction
 
-        // NOTE For cycles, we add an additional 1 to allow for last pc at the end of run(this does not edit the current pc value)
-        let new_page = self.pc.wrapping_add(1) >> 8;
-        // if old_page != new_page {
-        //     debug!("branch: detected page cross! old_page is {:2X}, new_page is {:2X}", old_page, new_page);
-        //     self.add_cycles(1);
-        // }
-
         self.pc = self.pc.wrapping_add(jump as u16);
+        // NOTE For cycles, we add an additional 1 to emulate for last pc at the end of run(this does not edit the current pc value)
+        let new_page = self.pc.wrapping_add(1) >> 8;
+        debug!("branch: old_page is {:2X}, new_page is {:2X}", old_page, new_page);
+        if old_page != new_page {
+            self.add_cycles(1);
+        }
+
 
         //println!("Finished branch, pc is now on {:#x}", self.pc);
     }
@@ -1499,7 +1520,7 @@ impl CPU {
             // );
             // Everything but jmp follows the cycles from group 1
             if aaa != 0b010 && aaa != 0b011 {
-                self.g1_cycles(&mode,addr, false);
+                self.g1_cycles(&mode, addr, false);
             } else {
                 // jmp cycles
                 match mode {

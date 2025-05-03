@@ -148,9 +148,8 @@ pub fn trace(cpu: &mut CPU) -> String {
     let ppu_scan = cpu.bus.ppu.scanline;
     let ppu_cycles = cpu.bus.ppu.cycles;
     let cpu_cycles = cpu.bus.cycles;
-    
-    let ppu_str= format!("PPU:{:>3},{:>3} CYC:{}", ppu_scan, ppu_cycles, cpu_cycles);
 
+    let ppu_str = format!("PPU:{:>3},{:>3} CYC:{}", ppu_scan, ppu_cycles, cpu_cycles);
 
     // CPU Cycles
 
@@ -161,7 +160,7 @@ pub fn trace(cpu: &mut CPU) -> String {
         ret_pc,        // PC address, left-aligned, 6 chars wide
         ret_raw_pad,   // Raw bytes, left-aligned, 10 chars wide
         ret_instr_pad, // Instruction with operand, left-aligned, 30 chars wide
-        ret_reg,        // Register values
+        ret_reg,       // Register values
         ppu_str
     );
 
