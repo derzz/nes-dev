@@ -3,7 +3,6 @@ use crate::bus::Bus;
 use bitflags::bitflags;
 use core::panic;
 use log::{debug, info, warn};
-use nes::print_title;
 use std::{fmt, ops::Add};
 
 type Byte = u8;
@@ -31,6 +30,7 @@ pub struct CPU {
     pub sp: Byte,
     pub flags: CpuFlags,
     pub bus: Bus,
+    pub halted: bool, // Used for successful exits
     pub cycles: u8, // Stores the number of cycles for one instruction, always restarts to 0 at start of run
 }
 
@@ -126,6 +126,7 @@ impl CPU {
             a: 0,
             x: 0,
             y: 0,
+            halted: false,
             sp: STACK_RESET,
             flags: CpuFlags::from_bits_truncate(0b0010_0100),
             bus: bus,
@@ -208,14 +209,15 @@ impl CPU {
         F: FnMut(&mut CPU),
     {
         loop {
+            if self.halted{
+                debug!("Got EOF signal! Exiting program...");
+                break;
+            }
             debug!(
                 "start of run the flags are {:#X}, pc is currently at {:#X}",
                 self.flags.bits(),
                 self.pc
             );
-            if let Some(_nmi) = self.bus.poll_nmi_status(){
-                self.interrupt_nmi();
-            }
             callback(self);
             debug!("finished running callback!");
             debug!("run: Reading values, starting with pc {:4X}", self.pc);
@@ -745,7 +747,8 @@ impl CPU {
         self.sp = self.sp.wrapping_add(1);
         if self.sp > STACK_RESET {
             debug!("EOF!");
-            std::process::exit(0);
+            self.halted = true;
+            return 0;
         }
         let ret = self.mem_read((STACK as u16) + self.sp as u16);
         debug!("stack_pop: popped {:2X}", ret);

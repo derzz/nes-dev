@@ -117,4 +117,5 @@ fn main() {
     cpu.run_with_callback(move |cpu| {
         println!("{}", trace(cpu));
     });
+
 }
