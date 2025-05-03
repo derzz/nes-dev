@@ -1,16 +1,20 @@
 pub mod bus;
 pub mod cpu;
+pub mod op;
+pub mod ppu;
+pub mod ppu_reg;
 pub mod rom;
+pub mod trace;
 
 use cpu::*;
 
-use rand::Rng;
 use rom::Rom;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::EventPump;
+use trace::trace;
 
 use crate::bus::Bus;
 
@@ -63,7 +67,7 @@ fn color(byte: u8) -> Color {
         _ => sdl2::pixels::Color::CYAN,
     }
 }
-fn read_screen_state(cpu: &CPU, frame: &mut [u8; 32 * 3 * 32]) -> bool {
+fn read_screen_state(cpu: &mut CPU, frame: &mut [u8; 32 * 3 * 32]) -> bool {
     let mut frame_idx = 0;
     let mut update = false;
     for i in 0x0200..0x600 {
@@ -81,41 +85,37 @@ fn read_screen_state(cpu: &CPU, frame: &mut [u8; 32 * 3 * 32]) -> bool {
 }
 
 fn main() {
-    let sdl_context = sdl2::init().unwrap();
-    let video_subsystem = sdl_context.video().unwrap();
-    let window = video_subsystem
-        .window("Snake game", (32.0 * 10.0) as u32, (32.0 * 10.0) as u32)
-        .position_centered()
-        .build()
-        .unwrap();
+    // let sdl_context = sdl2::init().unwrap();
+    // let video_subsystem = sdl_context.video().unwrap();
+    // let window = video_subsystem
+    //     .window("Snake game", (32.0 * 10.0) as u32, (32.0 * 10.0) as u32)
+    //     .position_centered()
+    //     .build()
+    //     .unwrap();
 
-    let mut canvas = window.into_canvas().present_vsync().build().unwrap();
-    let mut event_pump = sdl_context.event_pump().unwrap();
-    let creator = canvas.texture_creator();
-    let mut texture = creator
-        .create_texture_target(PixelFormatEnum::RGB24, 32, 32)
-        .unwrap();
-    canvas.set_scale(10.0, 10.0).unwrap();
+    // let mut canvas = window.into_canvas().present_vsync().build().unwrap();
+    // let mut event_pump = sdl_context.event_pump().unwrap();
+    // let creator = canvas.texture_creator();
+    // let mut texture = creator
+    //     .create_texture_target(PixelFormatEnum::RGB24, 32, 32)
+    //     .unwrap();
+    // canvas.set_scale(10.0, 10.0).unwrap();
 
-    let game_bytes = std::fs::read("snake.nes").unwrap();
+    // Note: Reading from the right file, why is it starting on C004?
+    let log_file = std::fs::File::create("debug.log").unwrap();
+    env_logger::Builder::new()
+        .target(env_logger::Target::Pipe(Box::new(log_file)))
+        .filter_level(log::LevelFilter::Debug)
+        .init();
+    let game_bytes = std::fs::read("nestest.nes").unwrap();
     let rom = Rom::new(&game_bytes).unwrap();
     let bus = Bus::new(rom);
     let mut cpu = CPU::new(bus);
     cpu.reset();
-    let mut screen_state = [0 as u8; 32 * 3 * 32];
-    let mut rng = rand::thread_rng();
+    // let mut screen_state = [0 as u8; 32 * 3 * 32];
+    // let mut rng = rand::thread_rng();
     cpu.run_with_callback(move |cpu| {
-        handle_user_input(cpu, &mut event_pump);
-        cpu.mem_write(0xfe, rng.gen_range(1, 16));
-
-        if read_screen_state(cpu, &mut screen_state) {
-            texture.update(None, &screen_state, 32 * 3).unwrap();
-
-            canvas.copy(&texture, None, None).unwrap();
-
-            canvas.present();
-        }
-
-        std::thread::sleep(std::time::Duration::new(0, 70_000));
+        println!("{}", trace(cpu));
     });
+
 }
