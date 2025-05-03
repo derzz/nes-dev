@@ -129,7 +129,7 @@ impl CPU {
             sp: STACK_RESET,
             flags: CpuFlags::from_bits_truncate(0b0010_0100),
             bus: bus,
-            cycles: 0,
+            cycles: 7, // Starting with 7 clock cycles
         }
     }
 
@@ -152,6 +152,7 @@ impl CPU {
 
     fn add_cycles(&mut self, val: u8) {
         self.cycles += val;
+        debug!("Adding {} cycles, total for this instruction is {}", val, self.cycles);
     }
 
     pub fn load(&mut self, program: Vec<u8>) {
@@ -272,7 +273,6 @@ impl CPU {
                     // Adds the needed cycles
                     self.g1_cycles(
                         &AddressingMode::Absolute_X,
-                        init_addr,
                         init_addr.wrapping_add(self.x as u16),
                         false,
                     );
@@ -349,51 +349,63 @@ impl CPU {
 
                 // LAX(d, X)
                 0xA3 => {
+                    self.add_cycles(6);
                     self.lax(&AddressingMode::Indirect_X);
                 }
 
                 // LAX d
                 0xA7 => {
+                    self.add_cycles(3);
                     self.lax(&AddressingMode::ZeroPage);
                 }
 
                 // LAX a
                 0xAF => {
+                    self.add_cycles(4);
                     self.lax(&AddressingMode::Absolute);
                 }
 
                 // LAX (d), Y
                 0xB3 => {
+                    // BUG need to consider page skip
+                    self.add_cycles(5);
                     self.lax(&AddressingMode::Indirect_Y);
                 }
 
                 // LAX d, Y
                 0xb7 => {
+                    self.add_cycles(4);
                     self.lax(&AddressingMode::ZeroPage_Y);
                 }
 
                 // LAX a,Y
                 0xbf => {
+                    // BUG need to consider page skip
+                    self.add_cycles(4);
                     self.lax(&AddressingMode::Absolute_Y);
                 }
 
                 // SAX (d, X)
                 0x83 => {
+                    self.add_cycles(6);
                     self.sax(&AddressingMode::Indirect_X);
                 }
 
                 // SAX d
                 0x87 => {
+                    self.add_cycles(3);
                     self.sax(&AddressingMode::ZeroPage);
                 }
 
                 // SAX a
                 0x8F => {
+                    self.add_cycles(4);
                     self.sax(&AddressingMode::Absolute);
                 }
 
                 // SAX d, Y
                 0x97 => {
+                    self.add_cycles(4);
                     self.sax(&AddressingMode::ZeroPage_Y);
                 }
 
@@ -439,7 +451,13 @@ impl CPU {
                 //println!("run: IRQ detected, most likely from a brk. Stopping execution...");
                 break;
             }
+
+            debug!("Calling tick, total number of cycles is {}", self.cycles);
+            // Call tick to allow the PPU to catch up
+            self.bus.tick(self.cycles); // self.cycles only contain the number of cycles after the current instruction
+
             self.pc = self.pc.wrapping_add(1);
+
             debug!("end of run the flags are {:#X}", self.flags.bits());
         }
         // print_title!("End of current execution");
@@ -632,6 +650,7 @@ impl CPU {
 
     fn check_page_cross(&mut self, base_addr: u16, final_addr: u16, is_sta: bool) {
         if (base_addr >> 8) != (final_addr >> 8) || is_sta {
+            debug!("Page cross detected: base_addr is {:4X} and final_addr is {:4X}", base_addr, final_addr);
             self.add_cycles(1);
         }
     }
@@ -640,7 +659,6 @@ impl CPU {
     fn g1_cycles(
         &mut self,
         mode: &AddressingMode,
-        old_address: u16,
         new_address: u16,
         is_sta: bool,
     ) {
@@ -652,10 +670,12 @@ impl CPU {
             AddressingMode::Absolute => self.add_cycles(4),
             AddressingMode::Absolute_X => {
                 self.add_cycles(4);
+                let old_address = new_address.wrapping_sub(self.x as u16);
                 self.check_page_cross(old_address, new_address, is_sta);
             }
             AddressingMode::Absolute_Y => {
                 self.add_cycles(4);
+                let old_address = new_address.wrapping_sub(self.y as u16);
                 self.check_page_cross(old_address, new_address, is_sta);
             }
             AddressingMode::Indirect_X => {
@@ -663,6 +683,8 @@ impl CPU {
             }
             AddressingMode::Indirect_Y => {
                 self.add_cycles(5);
+                // Change the old_address to the Y subtracted value
+                let old_address = new_address.wrapping_sub(self.y as u16);
                 self.check_page_cross(old_address, new_address, is_sta);
             }
             _ => panic!("{} not supported in group 1, no cycles added.", mode),
@@ -719,6 +741,7 @@ impl CPU {
         flags.insert(CpuFlags::BREAK);
         flags.insert(CpuFlags::BREAK2);
         self.stack_push(flags.bits());
+        self.add_cycles(1); // Added 2 already due to SB
         //println!("php: Finished execution- PC is {}", self.pc);
     }
 
@@ -732,6 +755,7 @@ impl CPU {
         } else {
             self.flags.remove(CpuFlags::BREAK);
         }
+        self.add_cycles(2); // Added 2 already due to SB
     }
 
     fn pha(&mut self) {
@@ -1054,7 +1078,7 @@ impl CPU {
         //println!("group_one: Selected mode {}, bbb is {:3b}", mode, bbb);
         let old_addr = self.mem_read_u16(self.pc);
         let addr = self.get_operand_address(&mode); // Memory location of the value to extract
-        self.g1_cycles(&mode, old_addr, addr, aaa == 4); // Adds cycles based on addressing mode, if aaa is 4, we're dealing with STA
+        self.g1_cycles(&mode, addr, aaa == 4); // Adds cycles based on addressing mode, if aaa is 4, we're dealing with STA
         let instr = match aaa {
             0 => {
                 self.ora(addr);
@@ -1250,7 +1274,7 @@ impl CPU {
         };
         // Adding cycles
         match aaa {
-            4 | 5 => self.g1_cycles(&mode, old_addr, addr, false), // stx and ldx works separately
+            4 | 5 => self.g1_cycles(&mode, addr, false), // stx and ldx works separately
             _ => self.g2_default_cycles(&mode), // Rest of g2 cycles can go here instead
         }
 
@@ -1341,7 +1365,7 @@ impl CPU {
         //     "branch: Initalized, starting to branch from pc {:#x}!",
         //     self.pc
         // );
-        self.add_cycles(1);
+        self.add_cycles(1); // Branch taken
         let old_page = self.pc >> 8;
         let jump = self.mem_read(self.pc) as i8;
         //println!("branch: jump is {:x}", jump);
@@ -1349,9 +1373,10 @@ impl CPU {
 
         // NOTE For cycles, we add an additional 1 to allow for last pc at the end of run(this does not edit the current pc value)
         let new_page = self.pc.wrapping_add(1) >> 8;
-        if old_page != new_page {
-            self.add_cycles(1);
-        }
+        // if old_page != new_page {
+        //     debug!("branch: detected page cross! old_page is {:2X}, new_page is {:2X}", old_page, new_page);
+        //     self.add_cycles(1);
+        // }
 
         self.pc = self.pc.wrapping_add(jump as u16);
 
@@ -1473,8 +1498,8 @@ impl CPU {
             //     aaa, addr
             // );
             // Everything but jmp follows the cycles from group 1
-            if aaa != 0b010 | 0b011 {
-                self.g1_cycles(&mode, old_addr, addr, false);
+            if aaa != 0b010 && aaa != 0b011 {
+                self.g1_cycles(&mode,addr, false);
             } else {
                 // jmp cycles
                 match mode {

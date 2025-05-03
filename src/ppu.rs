@@ -19,8 +19,8 @@ pub struct PPU {
 
     pub mirroring: Mirroring,
 
-    scanline: u16, // Which scanline should be drawn
-    cycles: usize, // Location of current cycle
+    pub scanline: u16, // Which scanline should be drawn
+    pub cycles: usize, // Location of current cycle
 }
 
 impl PPU {
@@ -43,7 +43,7 @@ impl PPU {
             scroll: ScrollRegister::new(),
             mirroring: mirroring,
             scanline: 0,
-            cycles: 0,
+            cycles: 21, // PPU starts with 3 times the cycles of CPU(which is 7)
         }
     }
 

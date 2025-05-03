@@ -8,8 +8,8 @@ pub struct Bus {
     cpu_vram: [u8; 2048],
     apu_vram: [u8; 24],
     prg_rom: Vec<u8>,
-    ppu: PPU,
-    cycles: usize,
+    pub ppu: PPU,
+    pub cycles: usize, // Contains total amount of cpu cycles
 }
 
 impl Bus {
@@ -20,7 +20,7 @@ impl Bus {
             apu_vram: [0xFF; 24],
             prg_rom: rom.prg_rom,
             ppu: ppu,
-            cycles: 0,
+            cycles: 7, // Starting with 7 clock cycles
         }
     }
     fn read_prg_rom(&self, mut addr: u16) -> u8 {

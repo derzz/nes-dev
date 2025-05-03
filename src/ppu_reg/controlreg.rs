@@ -48,10 +48,6 @@ impl ControlRegister {
     }
 
     pub fn generate_vblank_nmi(&self) -> bool {
-        if self.contains(ControlRegister::GENERATE_NMI) {
-            true
-        } else {
-            false
-        }
+        self.contains(ControlRegister::GENERATE_NMI)
     }
 }
