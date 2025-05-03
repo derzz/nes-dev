@@ -207,15 +207,15 @@ impl CPU {
     where
         F: FnMut(&mut CPU),
     {
-        //println!("run: Initalized");
-        //println!("starting callback");
-        //println!("finished callback!");
         loop {
             debug!(
                 "start of run the flags are {:#X}, pc is currently at {:#X}",
                 self.flags.bits(),
                 self.pc
             );
+            if let Some(_nmi) = self.bus.poll_nmi_status(){
+                self.interrupt_nmi();
+            }
             callback(self);
             debug!("finished running callback!");
             debug!("run: Reading values, starting with pc {:4X}", self.pc);

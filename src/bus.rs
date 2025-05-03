@@ -38,6 +38,9 @@ impl Bus {
         self.cycles += cycles as usize;
         self.ppu.tick(cycles * 3); //PPU Cycles are 3 times faster than CPU clock cycles
     }
+
+    // Polling for NMI Interrupt
+    
 }
 
 const RAM: u16 = 0x0000;
