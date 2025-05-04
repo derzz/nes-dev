@@ -5,6 +5,8 @@ pub mod ppu;
 pub mod ppu_reg;
 pub mod rom;
 pub mod trace;
+pub mod frame;
+pub mod palette;
 
 use cpu::*;
 

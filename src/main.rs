@@ -5,6 +5,7 @@ pub mod ppu;
 pub mod ppu_reg;
 pub mod rom;
 pub mod trace;
+pub mod frame;
 
 use cpu::*;
 
@@ -107,6 +108,7 @@ fn main() {
         .target(env_logger::Target::Pipe(Box::new(log_file)))
         .filter_level(log::LevelFilter::Debug)
         .init();
+
     let game_bytes = std::fs::read("nestest.nes").unwrap();
     let rom = Rom::new(&game_bytes).unwrap();
     let bus = Bus::new(rom);
