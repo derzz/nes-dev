@@ -4,7 +4,7 @@ import sys
 import os
 
 # Start the emulator
-emulator = subprocess.Popen(["cargo", "run"], stdout=subprocess.PIPE, text=True)
+emulator = subprocess.Popen(["cargo", "run", "--bin", "nes"], stdout=subprocess.PIPE, text=True)
 
 # Read expected output
 with open('exact.txt', 'r') as f:

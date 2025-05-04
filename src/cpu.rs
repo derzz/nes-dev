@@ -22,14 +22,14 @@ bitflags! {
     }
 }
 
-pub struct CPU {
+pub struct CPU<'a> {
     pub pc: u16,
     pub a: Byte,
     pub x: Byte,
     pub y: Byte,
     pub sp: Byte,
     pub flags: CpuFlags,
-    pub bus: Bus,
+    pub bus: Bus<'a>,
     pub halted: bool, // Used for successful exits
     pub cycles: u8, // Stores the number of cycles for one instruction, always restarts to 0 at start of run
 }
@@ -100,7 +100,7 @@ pub trait Mem {
     }
 }
 
-impl Mem for CPU {
+impl Mem for CPU<'_> {
     fn mem_read(&mut self, addr: u16) -> u8 {
         self.bus.mem_read(addr)
     }
@@ -119,8 +119,8 @@ impl Mem for CPU {
     }
 }
 
-impl CPU {
-    pub fn new(bus: Bus) -> Self {
+impl<'a> CPU<'a> {
+    pub fn new<'b>(bus: Bus<'b>) -> CPU<'b> {
         CPU {
             pc: 0,
             a: 0,
@@ -142,8 +142,8 @@ impl CPU {
         self.y = 0;
         self.flags = CpuFlags::from_bits_truncate(0b00100100);
         self.sp = STACK_RESET;
-        self.pc = 0xC000; // TODO Remove on tests
-                          // self.pc = self.mem_read_u16(0xFFFC);
+        // self.pc = 0xC000; // TODO Remove on tests
+        self.pc = self.mem_read_u16(0xFFFC);
     }
 
     // This function adds to cycles. This is to avoid any direct augmentation to the cycles(making it more painful to debug)

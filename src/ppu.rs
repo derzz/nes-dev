@@ -195,7 +195,7 @@ impl PPU {
         }
     }
 
-    fn write_oam_dma(&mut self, data: &[u8; 256]) {
+    pub fn write_oam_dma(&mut self, data: &[u8; 256]) {
         for x in data.iter() {
             self.oam_data[self.oam_addr as usize] = *x;
             self.oam_addr = self.oam_addr.wrapping_add(1);

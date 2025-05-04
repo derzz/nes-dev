@@ -23,7 +23,7 @@ bitflags! {
        const NAMETABLE2              = 0b00000010;
        const VRAM_ADD_INCREMENT      = 0b00000100;
        const SPRITE_PATTERN_ADDR     = 0b00001000;
-       const BACKROUND_PATTERN_ADDR  = 0b00010000;
+       const BACKGROUND_PATTERN_ADDR  = 0b00010000;
        const SPRITE_SIZE             = 0b00100000;
        const MASTER_SLAVE_SELECT     = 0b01000000;
        const GENERATE_NMI            = 0b10000000;
@@ -40,6 +40,15 @@ impl ControlRegister {
             1 // going right
         } else {
             32 // going down
+        }
+    }
+
+    pub fn bknd_pattern_addr(&self) -> u16{
+        if self.contains(ControlRegister::BACKGROUND_PATTERN_ADDR){
+            0x1000
+        }
+        else{
+            0
         }
     }
 
