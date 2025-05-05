@@ -242,7 +242,6 @@ impl<'a> CPU<'a> {
                 self.pc
             );
             callback(self);
-            debug!("finished running callback!");
             debug!("run: Reading values, starting with pc {:4X}", self.pc);
             debug!("run: Flags [NV-BDIZC]: {:08b}", self.flags.bits());
             warn!("The value of 7F is {:4X}", self.mem_read(0x7F));
@@ -1538,7 +1537,6 @@ impl<'a> CPU<'a> {
                 //println!("group_three: This is jmp indirect!");
                 mode = AddressingMode::Indirect;
             }
-            let old_addr = self.mem_read_u16(self.pc);
             let addr = self.get_operand_address(&mode);
             //println!(
             //     "group_three: Deciding what instruction with aaa: {:#b} and address {:#x}",

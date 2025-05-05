@@ -6,7 +6,6 @@ use crate::rom::Rom;
 
 pub struct Bus<'call> {
     cpu_vram: [u8; 2048],
-    apu_vram: [u8; 24],
     prg_rom: Vec<u8>,
     pub ppu: PPU,
     pub cycles: usize, // Contains total amount of cpu cycles
@@ -18,7 +17,6 @@ impl <'a>Bus<'a> {
         let ppu = PPU::new(rom.chr_rom, rom.screen_mirroring);
         Bus {
             cpu_vram: [0; 2048],
-            apu_vram: [0xFF; 24],
             prg_rom: rom.prg_rom,
             ppu: ppu,
             cycles: 7, // Starting with 7 clock cycles
