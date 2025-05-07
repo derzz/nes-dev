@@ -1,17 +1,11 @@
 use crate::cpu::AddressingMode;
 use crate::cpu::Mem;
 use crate::cpu::CPU;
-use crate::op::OpCode;
-use crate::op::CPU_OPCODES;
 use crate::op::OPCODES_MAP;
-use crate::ppu::PPU;
-use std::collections::HashMap;
-use std::ops::Add;
 
-use log::{debug, info, warn};
+// use log::{debug, info, warn};
 
 // This will return the current state of the cpu based on its parameters in trace
-// THIS WILL NOT TEST THE LAST COLUMN(PPU AND CPU CLOCK CYCLES)
 pub fn trace(cpu: &mut CPU) -> String {
     // Extract the PC
     let op_map = &OPCODES_MAP;
@@ -44,7 +38,6 @@ pub fn trace(cpu: &mut CPU) -> String {
         let ret = cpu.get_relative_address(&op.mode, pc);
         ret
     } else {
-        warn!("no trace address needed!");
         0
     };
     // Format the address based on what mode it is
@@ -125,7 +118,6 @@ pub fn trace(cpu: &mut CPU) -> String {
     let ret_instr = instr_dump.join(" ");
 
     // Cpu registers
-    warn!("the flags are {:#X}", cpu.flags.bits());
     let ret_reg = format!(
         "A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X}",
         cpu.a,
@@ -137,7 +129,6 @@ pub fn trace(cpu: &mut CPU) -> String {
 
     let (ret_raw_pad, ret_instr_pad) = {
         if op.lit.len() == 3 {
-            debug!("chose this one!");
             (format!("{:<10}", ret_raw), format!("{:<32}", ret_instr))
         } else {
             (format!("{:<9}", ret_raw), format!("{:<33}", ret_instr))

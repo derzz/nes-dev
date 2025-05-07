@@ -21,7 +21,7 @@ impl AddrRegister {
     }
 
     pub fn reset_latch(&mut self) {
-        self.hi_ptr = !self.hi_ptr
+        self.hi_ptr = true
     }
 
     pub fn update(&mut self, data: u8) {
@@ -31,8 +31,8 @@ impl AddrRegister {
             self.value.1 = data;
         }
 
-        if self.get() > 0x3fff {
-            self.set(self.get() & 0x3FFF) // Force down to 14 bits due to bit liminitation
+        if self.get() > 0x3fff { //mirror down addr above 0x3fff
+            self.set(self.get() & 0b11111111111111); //mirror down addr above 0x3fff
         }
         self.hi_ptr = !self.hi_ptr;
     }

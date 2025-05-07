@@ -14,6 +14,7 @@ pub struct StatusRegister: u8{
     const VBLANK = 0b1000_0000;
     const ZEROHIT = 0b0100_0000;
     const OVERFLOW = 0b0010_0000;
+    const SPRITE_ZERO_HIT = 0b0100_0000;
     // Rest are not needed
 }
 }
@@ -37,6 +38,14 @@ impl StatusRegister {
         } else {
             self.remove(StatusRegister::VBLANK);
         }
+    }   
+
+    pub fn set_sprite_zero_hit(&mut self, status: bool) {
+        self.set(StatusRegister::SPRITE_ZERO_HIT, status);
+    }
+
+    pub fn is_in_vblank(&mut self) -> bool{
+        self.contains(StatusRegister::VBLANK)
     }
 
     pub fn reset_vblank_status(&mut self) {
