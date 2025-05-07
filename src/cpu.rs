@@ -1,4 +1,6 @@
-use crate::bus::Bus;
+use crate::{bus::Bus, trace};
+
+use log::trace;
 
 use bitflags::bitflags;
 use core::panic;
@@ -106,7 +108,6 @@ impl Mem for CPU<'_> {
     }
 
     fn mem_write(&mut self, addr: u16, data: u8) {
-        debug!("Writing value {:2X} to address {:4X}", data, addr);
         self.bus.mem_write(addr, data);
     }
 
@@ -130,7 +131,7 @@ impl<'a> CPU<'a> {
             sp: STACK_RESET,
             flags: CpuFlags::from_bits_truncate(0b0010_0100),
             bus: bus,
-            cycles: 7, // Starting with 7 clock cycles
+            cycles: 0, // Starting with 0 clock cycles
         }
     }
 
@@ -142,8 +143,9 @@ impl<'a> CPU<'a> {
         self.y = 0;
         self.flags = CpuFlags::from_bits_truncate(0b00100100);
         self.sp = STACK_RESET;
-        // self.pc = 0xC000; // TODO Remove on tests
+        // self.pc = 0xC000; // Used for nestest.nes
         self.pc = self.mem_read_u16(0xFFFC);
+        self.cycles = 7
     }
 
     // This function adds to cycles. This is to avoid any direct augmentation to the cycles(making it more painful to debug)
@@ -153,17 +155,13 @@ impl<'a> CPU<'a> {
 
     fn add_cycles(&mut self, val: u8) {
         self.cycles += val;
-        debug!(
-            "Adding {} cycles, total for this instruction is {}",
-            val, self.cycles
-        );
     }
 
     pub fn load(&mut self, program: Vec<u8>) {
         for i in 0..(program.len() as u16) {
-            self.mem_write(0x0000 + i, program[i as usize]);
+            self.mem_write(0x0600 + i, program[i as usize]);
         }
-        self.mem_write_u16(0xFFFC, 0x0000);
+        // self.mem_write_u16(0xFFFC, 0x0000);
     }
 
     // This function is meant for testing, where the test can insert their own values afterwards
@@ -220,36 +218,30 @@ impl<'a> CPU<'a> {
         self.run_with_callback(|_| {});
     }
 
-    
-
     pub fn run_with_callback<F>(&mut self, mut callback: F)
     where
         F: FnMut(&mut CPU),
     {
-
         loop {
             if let Some(_nmi) = self.bus.poll_nmi_status(){
+                println!("nmi triggered!");
                 self.interrupt_nmi();
             }
 
             if self.halted{
-                debug!("Got EOF signal! Exiting program...");
+                println!("Got EOF signal! Exiting program...");
                 break;
             }
-            debug!(
-                "start of run the flags are {:#X}, pc is currently at {:#X}",
-                self.flags.bits(),
-                self.pc
-            );
+            // trace!(
+            //     "start of run the flags are {:#X}, pc is currently at {:#X}",
+            //     self.flags.bits(),
+            //     self.pc
+            // );
             callback(self);
-            debug!("run: Reading values, starting with pc {:4X}", self.pc);
-            debug!("run: Flags [NV-BDIZC]: {:08b}", self.flags.bits());
-            warn!("The value of 7F is {:4X}", self.mem_read(0x7F));
+            trace!("run: Reading values, starting with pc {:4X}", self.pc);
+            trace!("run: Flags [NV-BDIZC]: {:08b}", self.flags.bits());
+            trace!("The value of 7F is {:4X}", self.mem_read(0x7F));
             self.reset_cycles();
-            if self.pc == 0xFFFF && self.flags.contains(CpuFlags::INTERRUPT_DISABLE) {
-                debug!("run: IRQ detected, most likely from a brk. Stopping execution...");
-                break;
-            }
             let op = self.mem_read(self.pc);
             debug!("op is {:#4X}", op);
 
@@ -394,7 +386,6 @@ impl<'a> CPU<'a> {
 
                 // LAX (d), Y
                 0xB3 => {
-                    // BUG need to consider page skip
                     self.add_cycles(5);
                     let new_address =
                         self.get_relative_address(&AddressingMode::Indirect_Y, self.pc);
@@ -411,7 +402,6 @@ impl<'a> CPU<'a> {
 
                 // LAX a,Y
                 0xbf => {
-                    // BUG need to consider page skip
                     self.add_cycles(4);
                     self.lax(&AddressingMode::Absolute_Y);
                 }
@@ -684,7 +674,7 @@ impl<'a> CPU<'a> {
             AddressingMode::Indirect_Y => {
                 let base = self.mem_read(address);
                 let lo = self.mem_read(base as u16);
-                let hi = self.mem_read((base as u8).wrapping_add(1) as u16); // BUG if base is FF we need to wrap to 00
+                let hi = self.mem_read((base as u8).wrapping_add(1) as u16); // if base is FF we need to wrap to 00
                 let deref_base = (hi as u16) << 8 | (lo as u16);
                 let deref = deref_base.wrapping_add(self.y as u16);
                 deref
@@ -767,11 +757,6 @@ impl<'a> CPU<'a> {
 
     fn stack_pop(&mut self) -> u8 {
         self.sp = self.sp.wrapping_add(1);
-        if self.sp > STACK_RESET {
-            debug!("EOF!");
-            self.halted = true;
-            return 0;
-        }
         let ret = self.mem_read((STACK as u16) + self.sp as u16);
         debug!("stack_pop: popped {:2X}", ret);
         ret
@@ -1064,11 +1049,6 @@ impl<'a> CPU<'a> {
 
     fn sta(&mut self, addr: u16) {
         self.mem_write(addr, self.a);
-        let checked_value = self.mem_read(addr);
-        debug!(
-            "sta wrote {:4X} on address {:4X} with checked value {:4X}",
-            self.a, addr, checked_value
-        );
     }
 
     fn lda(&mut self, addr: u16) {
@@ -1080,21 +1060,16 @@ impl<'a> CPU<'a> {
 
     // Used for CPY, CMP, CPX
     fn compare(&mut self, addr: u16, val: u8) {
-        // BUG need to figure out val and mem[addr]
         let addr_val = self.mem_read(addr);
-        debug!("compare: val is {:#x}, addr_val is {:#x}", val, addr_val);
 
         let res = val.wrapping_sub(addr_val);
         debug!("res value is {:#X}", res);
         if val >= addr_val {
-            debug!("Added carry!");
             self.flags.insert(CpuFlags::CARRY);
         } else {
-            debug!("removed carry!");
             self.flags.remove(CpuFlags::CARRY);
         }
         if val == addr_val {
-            debug!("added zero!");
             self.flags.insert(CpuFlags::ZERO);
         } else {
             self.flags.remove(CpuFlags::ZERO);
@@ -1102,10 +1077,8 @@ impl<'a> CPU<'a> {
         let neg_test = val.wrapping_sub(addr_val) >> 7;
 
         if neg_test == 1 {
-            debug!("added negative");
             self.flags.insert(CpuFlags::NEGATIVE);
         } else {
-            debug!("removed negative");
             self.flags.remove(CpuFlags::NEGATIVE);
         }
 
@@ -1122,42 +1095,26 @@ impl<'a> CPU<'a> {
         //println!("group_one: Initalized");
         let mode = self.group_one_bbb(bbb);
         //println!("group_one: Selected mode {}, bbb is {:3b}", mode, bbb);
-        let old_addr = self.mem_read_u16(self.pc);
         let addr = self.get_operand_address(&mode); // Memory location of the value to extract
         self.g1_cycles(&mode, addr, aaa == 4); // Adds cycles based on addressing mode, if aaa is 4, we're dealing with STA
-        let instr = match aaa {
-            0 => {
-                self.ora(addr);
-                "ORA"
-            }
-            1 => {
-                self.and(addr);
-                "AND"
-            }
-            2 => {
-                self.eor(addr);
-                "EOR"
-            }
-            3 => {
-                self.adc(addr);
-                "ADC"
-            }
-            4 => {
-                self.sta(addr);
-                "STA"
-            }
-            5 => {
-                self.lda(addr);
-                "LDA"
-            }
-            6 => {
-                self.cmp(addr);
-                "CMP"
-            }
-            7 => {
-                self.sbc(addr);
-                "SBC"
-            }
+        match aaa {
+            0 => 
+                self.ora(addr),
+            1 => 
+                self.and(addr),
+            2 => 
+                self.eor(addr),
+            3 => 
+                self.adc(addr),
+            4 => 
+                self.sta(addr),
+            
+            5 =>
+                self.lda(addr),
+            6 =>
+                self.cmp(addr),
+            7 =>
+                self.sbc(addr),
             _ => unimplemented!("aaa"),
         };
         debug!("g1 the flags are {:#X}", self.flags.bits());
@@ -1312,7 +1269,6 @@ impl<'a> CPU<'a> {
             }
         };
         let accum = matches!(mode, AddressingMode::Accumulator);
-        let old_addr = self.mem_read_u16(self.pc);
         let addr = if !accum {
             self.get_operand_address(&mode)
         } else {
@@ -1465,7 +1421,6 @@ impl<'a> CPU<'a> {
         self.stack_push_u16(self.pc.wrapping_add(2));
         // Need to subtract one at the end as run() will add one automatically
         let new_pc = self.mem_read_u16(self.pc.wrapping_add(1)).wrapping_sub(1);
-        //println!("jsr: Going to new address: {:#x}", new_pc + 1);
         self.pc = new_pc;
         self.add_cycles(6); // 6 cycles no matter what
     }

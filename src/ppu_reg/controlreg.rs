@@ -58,5 +58,6 @@ impl ControlRegister {
 
     pub fn generate_vblank_nmi(&self) -> bool {
         self.contains(ControlRegister::GENERATE_NMI)
-    }
+    }   
+
 }

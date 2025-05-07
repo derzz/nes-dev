@@ -60,16 +60,19 @@ impl PPU {
             // Scanline is on vBlank line
             if self.scanline == 241 {
                 // Enabling causes NMI interrupt to be called at start of vblank
+                self.status.set_vblank_status(true);
+                self.status.set_sprite_zero_hit(false);
                 if self.ctrl.generate_vblank_nmi() {
-                    self.status.set_vblank_status(true);
-                    todo!("Triggers nmi interrupt")
+                    self.nmi_interrupt = Some(1);
                 }
             }
 
-            if self.scanline == 262 {
+            if self.scanline >= 262 {
                 self.scanline = 0;
+                self.nmi_interrupt = None;
+                self.status.set_sprite_zero_hit(false);
                 self.status.reset_vblank_status();
-                return true; // Indicating reset and full render is done
+                return true;
             }
         }
         return false; // Full render is not finished
@@ -96,6 +99,7 @@ impl PPU {
         let ret = self.status.get_status();
         self.status.clear_vblank();
         self.addr.reset_latch();
+        self.scroll.reset_latch();
         ret
     }
 
@@ -121,27 +125,33 @@ impl PPU {
 
     // 0x2006 write, PPUADDR
     pub fn write_to_ppu_addr(&mut self, val: u8) {
+        println!("Wrote {:x} to ppu address!", val);
         self.addr.update(val);
     }
 
     // 0x2007 read/write, PPUDATA(VRAM read/write data register)
     // Writes to data
     pub fn write_to_data(&mut self, val: u8) {
+        println!("writing data");
         let addr = self.addr.get();
+        println!("Writing to address {:x} with value {:x}", addr, val);
         match addr {
-            0..=0x1fff => println!("Attempt to write to character rom space!"),
+            0..=0x1fff => println!("Attempt to write to character rom space, writing to {:4X}!", addr),
             0x2000..=0x2FFF => {
                 // Name tables
                 self.vram[self.mirror_vram_addr(addr) as usize] = val;
             }
             0x3000..=0x3EFF => unimplemented!("Unused ppu memory attempted to write {}", addr),
             // Scales down to palette RAM
-            0x3F10 | 0x3F14 | 0x3F18 | 0x3F1C => {
-                let mirr_addr = addr - 0x3F10; // BUG may be copies of 0x3F00 instead?
-                self.palette_table[mirr_addr as usize] = val;
+            0x3f10 | 0x3f14 | 0x3f18 | 0x3f1c => {
+                let add_mirror = addr - 0x10;
+                self.palette_table[(add_mirror - 0x3f00) as usize] = val;
             }
-            // BUG should be scaling down by mirroring
-            0x3F00..=0x3FFF => self.palette_table[((addr - 0x3f00) % 32) as usize] = val,
+            0x3F00..=0x3FFF => 
+            {
+                println!("Writing to palette table {:x}", addr);
+                self.palette_table[(addr - 0x3f00) as usize] = val
+            },
             _ => panic!("Unknown write access to mirrored space {}", addr),
         }
 
@@ -150,10 +160,12 @@ impl PPU {
 
 
     fn increment_vram_addr(&mut self) {
+        println!("incremented addr!");
         self.addr.increment(self.ctrl.vram_addr_increment());
     }
 
     pub fn read_data(&mut self) -> u8 {
+        println!("reading data");
         let addr = self.addr.get();
         self.increment_vram_addr();
 
@@ -174,14 +186,17 @@ impl PPU {
                 // Unused
                 "0x3000 to 0x3eff is not expected to be used, the requested address is {}",
                 addr
-            ),
+            ),            //Addresses $3F10/$3F14/$3F18/$3F1C are mirrors of $3F00/$3F04/$3F08/$3F0C
+            0x3f10 | 0x3f14 | 0x3f18 | 0x3f1c => {
+                let add_mirror = addr - 0x10;
+                self.palette_table[(add_mirror - 0x3f00) as usize]
+            }
             0x3f00..=0x3fff => self.palette_table[(addr - 0x3f00) as usize], // Palette RAM, 0x3F20-0x3FFF are mirrors of 0x3F00-0x3F1F
             _ => panic!("unexpected access to mirrored space {}", addr),
         }
     }
 
     // Mirrors vram
-
     fn mirror_vram_addr(&mut self, addr: u16) -> u16 {
         let mirrored_vram = addr & !0x1000; // Bring down 0x3000.. 0x3eff to 0x2000.. 0x2eff by subtracting 0x1000(If it's 0x2000 or 0x2fff, nothing changes)
         let vram_index = mirrored_vram - 0x2000; // Bring down to 0x0.. 0x0eff(to vram vector)

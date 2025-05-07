@@ -36,11 +36,8 @@ impl <'a>Bus<'a> {
     // Counting ticks
     pub fn tick(&mut self, cycles: u8) {
         self.cycles += cycles as usize;
-        let nmi_before = self.ppu.nmi_interrupt.is_some();
-        self.ppu.tick(cycles * 3); //PPU Cycles are 3 times faster than CPU clock cycles
-        let nmi_after = self.ppu.nmi_interrupt.is_some(); // Checks if nmi is activated
-
-        if !nmi_before && nmi_after{
+        let new_frame = self.ppu.tick(cycles * 3);
+        if new_frame {
             (self.gameloop_callback)(&self.ppu);
         }
     }
@@ -74,13 +71,15 @@ impl Mem for Bus<'_> {
             }
             0x2002 => self.ppu.read_status(),
             0x2004 => self.ppu.read_oam_data(),
-            0x2007 => self.ppu.read_data(),
+            0x2007 => {
+                self.ppu.read_data()
+            },
             0x2008..=PPU_REGISTERS_MIRRORS_END => {
                 // Mirroring down to 0x2000 to 0x2007
                 let mirror_down_addr = addr & 0x2007;
                 self.mem_read(mirror_down_addr)
             }
-            0x4000..0x4017 => {
+            0x4000..=0x4017 => {
                 // Ignore APU and joypads
                 0
             }
@@ -117,10 +116,9 @@ impl Mem for Bus<'_> {
             0x2008..=PPU_REGISTERS_MIRRORS_END => {
                 let mirror_addr = addr & 0b00100000_00000111;
                 self.mem_write(mirror_addr, data);
-                // todo!("PPU is not supported yet");
             }
             PROGRAM_RAM..=PROGRAM_RAM_END => {
-                panic!("Attempt to write to program RAM space!");
+                panic!("Attempt to write to program CHR ROM space {:x}!", addr);
             }
 
             0x4014 => {
@@ -133,19 +131,17 @@ impl Mem for Bus<'_> {
                 self.ppu.write_oam_dma(&buffer);
             }
 
-            // TODO Need to change these functinoalities for audio, joypad, DMA functionality(These are put as 0xFF for initial testing sake)
-            0x4000.. 0x4013 | 0x4015 => {
-                // ignore apu
+            0x4000..=0x4013 | 0x4015 => {
+                //ignore APU 
             }
 
-            0x4016=>{
-                // joypad 1
+            0x4016 => {
+                // ignore joypad 1;
             }
 
-            0x4017 =>{
-                // joypad
+            0x4017 => {
+                // ignore joypad 2
             }
-
             _ => {
                 println!("Ignoring mem write-access at {}", addr);
             }
