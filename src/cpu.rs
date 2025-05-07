@@ -1,11 +1,11 @@
-use crate::{bus::Bus, trace};
+use crate::{bus::Bus};
 
 use log::trace;
 
 use bitflags::bitflags;
 use core::panic;
-use log::{debug, info, warn};
-use std::{fmt, ops::Add};
+use log::{debug};
+use std::{fmt};
 
 type Byte = u8;
 

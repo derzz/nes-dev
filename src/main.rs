@@ -7,7 +7,7 @@ use nes::ppu::PPU;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::PixelFormatEnum;
-use nes::trace::trace;
+// use nes::trace::trace;
 
 use nes::bus::Bus;
 
@@ -15,7 +15,7 @@ fn main() {
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let window = video_subsystem
-        .window("NEX", (256.0 * 3.0) as u32, (240.0 * 3.0) as u32)
+        .window("NEXie", (256.0 * 3.0) as u32, (240.0 * 3.0) as u32)
         .position_centered()
         .build()
         .unwrap();

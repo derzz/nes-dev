@@ -56,6 +56,15 @@ impl ControlRegister {
         *self = ControlRegister::from_bits_truncate(data);
     }
 
+    
+    pub fn sprt_pattern_addr(&self) -> u16 {
+        if !self.contains(ControlRegister::SPRITE_PATTERN_ADDR) {
+            0 // Sprite table 0
+        } else {
+            0x1000 // Sprite table 1
+        }
+    }
+
     pub fn generate_vblank_nmi(&self) -> bool {
         self.contains(ControlRegister::GENERATE_NMI)
     }   

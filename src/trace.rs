@@ -3,7 +3,7 @@ use crate::cpu::Mem;
 use crate::cpu::CPU;
 use crate::op::OPCODES_MAP;
 
-use log::{debug, info, warn};
+// use log::{debug, info, warn};
 
 // This will return the current state of the cpu based on its parameters in trace
 pub fn trace(cpu: &mut CPU) -> String {
