@@ -1,5 +1,6 @@
 use core::panic;
 
+use crate::controller::Controller;
 use crate::cpu::Mem;
 use crate::ppu::PPU;
 use crate::rom::Rom;
@@ -9,11 +10,12 @@ pub struct Bus<'call> {
     prg_rom: Vec<u8>,
     pub ppu: PPU,
     pub cycles: usize, // Contains total amount of cpu cycles
-    gameloop_callback: Box<dyn FnMut(&PPU) + 'call> // Box, pointer to heap ddata is managed by the box
+    gameloop_callback: Box<dyn FnMut(&PPU, &mut Controller) + 'call>, // Box, pointer to heap ddata is managed by the box
+    controller1: Controller
 }
 
 impl <'a>Bus<'a> {
-    pub fn new<'call, F>(rom: Rom, gameloop_callback: F) -> Bus<'call> where F: FnMut(&PPU) + 'call,{
+    pub fn new<'call, F>(rom: Rom, gameloop_callback: F) -> Bus<'call> where F: FnMut(&PPU, &mut Controller) + 'call,{
         let ppu = PPU::new(rom.chr_rom, rom.screen_mirroring);
         Bus {
             cpu_vram: [0; 2048],
@@ -21,6 +23,7 @@ impl <'a>Bus<'a> {
             ppu: ppu,
             cycles: 7, // Starting with 7 clock cycles
             gameloop_callback: Box::from(gameloop_callback),
+            controller1: Controller::new()
         }
     }
     fn read_prg_rom(&self, mut addr: u16) -> u8 {
@@ -38,7 +41,7 @@ impl <'a>Bus<'a> {
         self.cycles += cycles as usize;
         let new_frame = self.ppu.tick(cycles * 3);
         if new_frame {
-            (self.gameloop_callback)(&self.ppu);
+            (self.gameloop_callback)(&self.ppu, &mut self.controller1);
         }
     }
 
@@ -79,8 +82,17 @@ impl Mem for Bus<'_> {
                 let mirror_down_addr = addr & 0x2007;
                 self.mem_read(mirror_down_addr)
             }
-            0x4000..=0x4017 => {
-                // Ignore APU and joypads
+            0x4000..=0x4015 => {
+                // Ignoring APU
+                0
+            }
+
+            0x4016 =>{
+                self.controller1.read()
+            }
+
+            0x4017 =>{
+                // Controller 2
                 0
             }
             PROGRAM_RAM..=PROGRAM_RAM_END => self.read_prg_rom(addr),
@@ -136,11 +148,11 @@ impl Mem for Bus<'_> {
             }
 
             0x4016 => {
-                // ignore joypad 1;
+                self.controller1.write(data);
             }
 
             0x4017 => {
-                // ignore joypad 2
+                // ignore controller 2
             }
             _ => {
                 println!("Ignoring mem write-access at {}", addr);
