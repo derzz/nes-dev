@@ -43,11 +43,10 @@ impl ControlRegister {
         }
     }
 
-    pub fn bknd_pattern_addr(&self) -> u16{
-        if self.contains(ControlRegister::BACKGROUND_PATTERN_ADDR){
+    pub fn bknd_pattern_addr(&self) -> u16 {
+        if self.contains(ControlRegister::BACKGROUND_PATTERN_ADDR) {
             0x1000
-        }
-        else{
+        } else {
             0
         }
     }
@@ -56,7 +55,17 @@ impl ControlRegister {
         *self = ControlRegister::from_bits_truncate(data);
     }
 
-    
+    pub fn nametable_addr(&self) -> u16 {
+        let mut addr = 0x2000;
+        if self.contains(ControlRegister::NAMETABLE1) {
+            addr |= 0x400;
+        }
+        if self.contains(ControlRegister::NAMETABLE2) {
+            addr |= 0x800;
+        }
+        addr
+    }
+
     pub fn sprt_pattern_addr(&self) -> u16 {
         if !self.contains(ControlRegister::SPRITE_PATTERN_ADDR) {
             0 // Sprite table 0
@@ -67,6 +76,5 @@ impl ControlRegister {
 
     pub fn generate_vblank_nmi(&self) -> bool {
         self.contains(ControlRegister::GENERATE_NMI)
-    }   
-
+    }
 }

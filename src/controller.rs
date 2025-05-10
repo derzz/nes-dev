@@ -3,7 +3,7 @@
 
 use bitflags::bitflags;
 
-bitflags!{
+bitflags! {
     #[derive(Copy, Clone, Debug)]
     pub struct ControllerButton: u8{
         const RIGHT = 0b1000_0000;
@@ -17,45 +17,41 @@ bitflags!{
     }
 }
 
-pub struct Controller{
+pub struct Controller {
     strobe: bool, // Determines if we are writing input or leaving the read
     button_index: u8,
-    button_status: ControllerButton
+    button_status: ControllerButton,
 }
 
-impl Controller{
+impl Controller {
     pub fn new() -> Self {
-        Controller{
+        Controller {
             strobe: false,
             button_index: 0,
             button_status: ControllerButton::from_bits_truncate(0b0000_0000),
         }
     }
 
-    pub fn write(&mut self, data: u8){
-        println!("writing controller!");
+    pub fn write(&mut self, data: u8) {
         self.strobe = data & 1 == 1;
-        if self.strobe{
-            println!("resetting strobe!");
+        if self.strobe {
             // Starts at the first index
             self.button_index = 0
         }
     }
 
-    pub fn read(&mut self) -> u8{
-        println!("reading controller!");
-        if self.button_index > 7{
+    pub fn read(&mut self) -> u8 {
+        if self.button_index > 7 {
             return 1; // Indicates that there isn't anything left ot read
         }
         let response = (self.button_status.bits() & (1 << self.button_index)) >> self.button_index;
-        if !self.strobe && self.button_index <= 7{
+        if !self.strobe && self.button_index <= 7 {
             self.button_index += 1; // Increments the index for the next read
         }
-        println!("Response is {:x}", response);
         response
     }
 
-    pub fn set_button_pressed_status(&mut self, button: ControllerButton, input: bool){
+    pub fn set_button_pressed_status(&mut self, button: ControllerButton, input: bool) {
         println!("Set status to {:?}", button);
         self.button_status.set(button, input);
     }

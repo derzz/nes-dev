@@ -1,11 +1,11 @@
-use crate::{bus::Bus};
+use crate::bus::Bus;
 
 use log::trace;
 
 use bitflags::bitflags;
 use core::panic;
-use log::{debug};
-use std::{fmt};
+use log::debug;
+use std::fmt;
 
 type Byte = u8;
 
@@ -198,10 +198,9 @@ impl<'a> CPU<'a> {
         }
     }
 
-
     // If nmi interrupt is encountered
-    
-    fn interrupt_nmi(&mut self){
+
+    fn interrupt_nmi(&mut self) {
         self.stack_push_u16(self.pc); // Push PC and Status flag on stack
         let mut flag = self.flags.clone();
         flag.set(CpuFlags::BREAK, false);
@@ -223,12 +222,12 @@ impl<'a> CPU<'a> {
         F: FnMut(&mut CPU),
     {
         loop {
-            if let Some(_nmi) = self.bus.poll_nmi_status(){
+            if let Some(_nmi) = self.bus.poll_nmi_status() {
                 println!("nmi triggered!");
                 self.interrupt_nmi();
             }
 
-            if self.halted{
+            if self.halted {
                 println!("Got EOF signal! Exiting program...");
                 break;
             }
@@ -1098,23 +1097,15 @@ impl<'a> CPU<'a> {
         let addr = self.get_operand_address(&mode); // Memory location of the value to extract
         self.g1_cycles(&mode, addr, aaa == 4); // Adds cycles based on addressing mode, if aaa is 4, we're dealing with STA
         match aaa {
-            0 => 
-                self.ora(addr),
-            1 => 
-                self.and(addr),
-            2 => 
-                self.eor(addr),
-            3 => 
-                self.adc(addr),
-            4 => 
-                self.sta(addr),
-            
-            5 =>
-                self.lda(addr),
-            6 =>
-                self.cmp(addr),
-            7 =>
-                self.sbc(addr),
+            0 => self.ora(addr),
+            1 => self.and(addr),
+            2 => self.eor(addr),
+            3 => self.adc(addr),
+            4 => self.sta(addr),
+
+            5 => self.lda(addr),
+            6 => self.cmp(addr),
+            7 => self.sbc(addr),
             _ => unimplemented!("aaa"),
         };
         debug!("g1 the flags are {:#X}", self.flags.bits());
@@ -1376,11 +1367,13 @@ impl<'a> CPU<'a> {
         self.pc = self.pc.wrapping_add(jump as u16);
         // NOTE For cycles, we add an additional 1 to emulate for last pc at the end of run(this does not edit the current pc value)
         let new_page = self.pc.wrapping_add(1) >> 8;
-        debug!("branch: old_page is {:2X}, new_page is {:2X}", old_page, new_page);
+        debug!(
+            "branch: old_page is {:2X}, new_page is {:2X}",
+            old_page, new_page
+        );
         if old_page != new_page {
             self.add_cycles(1);
         }
-
 
         //println!("Finished branch, pc is now on {:#x}", self.pc);
     }
