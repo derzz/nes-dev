@@ -50,10 +50,21 @@ impl PPU {
         }
     }
 
+    fn is_sprite_zero_hit(&self, cycle: usize) -> bool {
+        //  
+        let y = self.oam_data[0] as usize;
+        let x = self.oam_data[3] as usize;
+        (y == self.scanline as usize) && x <= cycle && self.mask.show_sprites()
+    }
+
     pub fn tick(&mut self, cycles: u8) -> bool {
         self.cycles += cycles as usize;
         // Scanline lasts for 341 PPU cycles
         if self.cycles >= 341 {
+            if self.is_sprite_zero_hit(self.cycles) {
+                self.status.set_sprite_zero_hit(true);
+            }
+
             self.cycles -= 341;
             self.scanline += 1;
 
