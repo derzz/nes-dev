@@ -59,18 +59,15 @@ impl PPU {
 
     pub fn tick(&mut self, cycles: u8) -> bool {
         self.cycles += cycles as usize;
-        // Scanline lasts for 341 PPU cycles
         if self.cycles >= 341 {
             if self.is_sprite_zero_hit(self.cycles) {
                 self.status.set_sprite_zero_hit(true);
             }
 
-            self.cycles -= 341;
+            self.cycles = self.cycles - 341;
             self.scanline += 1;
 
-            // Scanline is on vBlank line
             if self.scanline == 241 {
-                // Enabling causes NMI interrupt to be called at start of vblank
                 self.status.set_vblank_status(true);
                 self.status.set_sprite_zero_hit(false);
                 if self.ctrl.generate_vblank_nmi() {
@@ -86,7 +83,7 @@ impl PPU {
                 return true;
             }
         }
-        return false; // Full render is not finished
+        return false;
     }
 
     // 0x2000 write, PPUCTRL(Flags)

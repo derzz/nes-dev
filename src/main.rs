@@ -52,7 +52,7 @@ fn main() {
     input_map.insert(Keycode::Space, ControllerButton::SELECT);
 
     // Game loading and CPU setup
-    let game_bytes = std::fs::read("roms/ice_climber.nes").unwrap();
+    let game_bytes = std::fs::read("PATH GOES HERE").unwrap();
     let rom = Rom::new(&game_bytes).unwrap();
 
     let mut frame = Frame::new();
@@ -75,13 +75,13 @@ fn main() {
                     } => std::process::exit(0),
                     Event::KeyDown { keycode, .. } => {
                         if let Some(key) = input_map.get(&keycode.unwrap_or(Keycode::Ampersand)) {
-                            println!("Pressed button!");
+                            // println!("Pressed button!");
                             controller.set_button_pressed_status(*key, true);
                         }
                     }
                     Event::KeyUp { keycode, .. } => {
                         if let Some(key) = input_map.get(&keycode.unwrap_or(Keycode::Ampersand)) {
-                            println!("Released button!");
+                            // println!("Released button!");
                             controller.set_button_pressed_status(*key, false);
                         }
                     }

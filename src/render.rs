@@ -62,7 +62,7 @@ fn render_name_table(
                     && pixel_x < view_port.x2
                     && pixel_y >= view_port.y1
                     && pixel_y < view_port.y2
-                {
+                {                    
                     frame.set_pixel(
                         (shift_x + pixel_x as isize) as usize,
                         (shift_y + pixel_y as isize) as usize,
