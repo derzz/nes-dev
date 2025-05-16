@@ -33,4 +33,8 @@ impl MaskRegister {
     pub fn update(&mut self, data: u8) {
         *self = MaskRegister::from_bits_truncate(data);
     }
+
+    pub fn show_sprites(&self) -> bool {
+        self.contains(MaskRegister::SPRITE)
+    }
 }

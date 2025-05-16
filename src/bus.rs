@@ -11,11 +11,14 @@ pub struct Bus<'call> {
     pub ppu: PPU,
     pub cycles: usize, // Contains total amount of cpu cycles
     gameloop_callback: Box<dyn FnMut(&PPU, &mut Controller) + 'call>, // Box, pointer to heap ddata is managed by the box
-    controller1: Controller
+    controller1: Controller,
 }
 
-impl <'a>Bus<'a> {
-    pub fn new<'call, F>(rom: Rom, gameloop_callback: F) -> Bus<'call> where F: FnMut(&PPU, &mut Controller) + 'call,{
+impl<'a> Bus<'a> {
+    pub fn new<'call, F>(rom: Rom, gameloop_callback: F) -> Bus<'call>
+    where
+        F: FnMut(&PPU, &mut Controller) + 'call,
+    {
         let ppu = PPU::new(rom.chr_rom, rom.screen_mirroring);
         Bus {
             cpu_vram: [0; 2048],
@@ -23,7 +26,7 @@ impl <'a>Bus<'a> {
             ppu: ppu,
             cycles: 7, // Starting with 7 clock cycles
             gameloop_callback: Box::from(gameloop_callback),
-            controller1: Controller::new()
+            controller1: Controller::new(),
         }
     }
     fn read_prg_rom(&self, mut addr: u16) -> u8 {
@@ -49,7 +52,6 @@ impl <'a>Bus<'a> {
     pub fn poll_nmi_status(&mut self) -> Option<u8> {
         self.ppu.nmi_interrupt.take()
     }
-    
 }
 
 const RAM: u16 = 0x0000;
@@ -74,9 +76,7 @@ impl Mem for Bus<'_> {
             }
             0x2002 => self.ppu.read_status(),
             0x2004 => self.ppu.read_oam_data(),
-            0x2007 => {
-                self.ppu.read_data()
-            },
+            0x2007 => self.ppu.read_data(),
             0x2008..=PPU_REGISTERS_MIRRORS_END => {
                 // Mirroring down to 0x2000 to 0x2007
                 let mirror_down_addr = addr & 0x2007;
@@ -87,11 +87,9 @@ impl Mem for Bus<'_> {
                 0
             }
 
-            0x4016 =>{
-                self.controller1.read()
-            }
+            0x4016 => self.controller1.read(),
 
-            0x4017 =>{
+            0x4017 => {
                 // Controller 2
                 0
             }
@@ -144,7 +142,7 @@ impl Mem for Bus<'_> {
             }
 
             0x4000..=0x4013 | 0x4015 => {
-                //ignore APU 
+                //ignore APU
             }
 
             0x4016 => {

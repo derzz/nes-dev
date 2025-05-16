@@ -38,13 +38,13 @@ impl StatusRegister {
         } else {
             self.remove(StatusRegister::VBLANK);
         }
-    }   
+    }
 
     pub fn set_sprite_zero_hit(&mut self, status: bool) {
         self.set(StatusRegister::SPRITE_ZERO_HIT, status);
     }
 
-    pub fn is_in_vblank(&mut self) -> bool{
+    pub fn is_in_vblank(&mut self) -> bool {
         self.contains(StatusRegister::VBLANK)
     }
 

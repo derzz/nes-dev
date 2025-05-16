@@ -1,22 +1,22 @@
 pub mod bus;
+pub mod controller;
 pub mod cpu;
+pub mod frame;
 pub mod op;
+pub mod palette;
 pub mod ppu;
 pub mod ppu_reg;
+pub mod render;
 pub mod rom;
 pub mod trace;
-pub mod frame;
-pub mod palette;
-pub mod render;
-pub mod controller;
 
 use cpu::*;
 
+use frame::Frame;
+use ppu::PPU;
 use rom::Rom;
 use sdl2::{event::Event, keyboard::Keycode, pixels::PixelFormatEnum};
 use trace::trace;
-use frame::Frame;
-use ppu::PPU;
 
 use crate::bus::Bus;
 #[macro_export]
@@ -28,7 +28,6 @@ macro_rules! print_title {
         );
     };
 }
-
 
 // Used with NES test, removing for now due to polishing state of ppu and controllers
 // pub fn run_nestest_and_capture() -> Vec<String> {

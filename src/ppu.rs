@@ -22,7 +22,7 @@ pub struct PPU {
     pub scanline: u16, // Which scanline should be drawn
     pub cycles: usize, // Location of current cycle
 
-    pub nmi_interrupt: Option<u8>
+    pub nmi_interrupt: Option<u8>,
 }
 
 impl PPU {
@@ -46,20 +46,28 @@ impl PPU {
             mirroring: mirroring,
             scanline: 0,
             cycles: 21, // PPU starts with 3 times the cycles of CPU(which is 7)
-            nmi_interrupt: None
+            nmi_interrupt: None,
         }
+    }
+
+    fn is_sprite_zero_hit(&self, cycle: usize) -> bool {
+        //
+        let y = self.oam_data[0] as usize;
+        let x = self.oam_data[3] as usize;
+        (y == self.scanline as usize) && x <= cycle && self.mask.show_sprites()
     }
 
     pub fn tick(&mut self, cycles: u8) -> bool {
         self.cycles += cycles as usize;
-        // Scanline lasts for 341 PPU cycles
         if self.cycles >= 341 {
-            self.cycles -= 341;
+            if self.is_sprite_zero_hit(self.cycles) {
+                self.status.set_sprite_zero_hit(true);
+            }
+
+            self.cycles = self.cycles - 341;
             self.scanline += 1;
 
-            // Scanline is on vBlank line
             if self.scanline == 241 {
-                // Enabling causes NMI interrupt to be called at start of vblank
                 self.status.set_vblank_status(true);
                 self.status.set_sprite_zero_hit(false);
                 if self.ctrl.generate_vblank_nmi() {
@@ -75,7 +83,7 @@ impl PPU {
                 return true;
             }
         }
-        return false; // Full render is not finished
+        return false;
     }
 
     // 0x2000 write, PPUCTRL(Flags)
@@ -136,7 +144,10 @@ impl PPU {
         let addr = self.addr.get();
         println!("Writing to address {:x} with value {:x}", addr, val);
         match addr {
-            0..=0x1fff => println!("Attempt to write to character rom space, writing to {:4X}!", addr),
+            0..=0x1fff => println!(
+                "Attempt to write to character rom space, writing to {:4X}!",
+                addr
+            ),
             0x2000..=0x2FFF => {
                 // Name tables
                 self.vram[self.mirror_vram_addr(addr) as usize] = val;
@@ -147,17 +158,15 @@ impl PPU {
                 let add_mirror = addr - 0x10;
                 self.palette_table[(add_mirror - 0x3f00) as usize] = val;
             }
-            0x3F00..=0x3FFF => 
-            {
+            0x3F00..=0x3FFF => {
                 println!("Writing to palette table {:x}", addr);
                 self.palette_table[(addr - 0x3f00) as usize] = val
-            },
+            }
             _ => panic!("Unknown write access to mirrored space {}", addr),
         }
 
         self.increment_vram_addr();
     }
-
 
     fn increment_vram_addr(&mut self) {
         println!("incremented addr!");
@@ -186,7 +195,7 @@ impl PPU {
                 // Unused
                 "0x3000 to 0x3eff is not expected to be used, the requested address is {}",
                 addr
-            ),            //Addresses $3F10/$3F14/$3F18/$3F1C are mirrors of $3F00/$3F04/$3F08/$3F0C
+            ), //Addresses $3F10/$3F14/$3F18/$3F1C are mirrors of $3F00/$3F04/$3F08/$3F0C
             0x3f10 | 0x3f14 | 0x3f18 | 0x3f1c => {
                 let add_mirror = addr - 0x10;
                 self.palette_table[(add_mirror - 0x3f00) as usize]
